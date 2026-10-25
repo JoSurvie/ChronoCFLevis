@@ -267,6 +267,71 @@ body {
   #btnApiStatusBadge {
     display: none !important;
   }
+
+  /* Plein écran ("Chrono Géant") en mode portrait sur téléphone :
+     - Masquer la barre du haut (#topHeaderBar)
+     - Masquer les boutons "FOR TIME", "EMOM", "AMRAP / ROUNDS" (#timerModeTabsGroup)
+     - Rendre le chrono (#timerDigits) responsive par rapport à sa fenêtre (#timerDisplayBox via container-type)
+     - Empiler les indications au-dessus du chrono (#timerTopMetaRow) l'une au-dessus de l'autre en petit */
+  body.timer-fullscreen-mode {
+    padding-top: 0 !important;
+  }
+
+  body.timer-fullscreen-mode #topHeaderBar {
+    display: none !important;
+  }
+
+  body.timer-fullscreen-mode #mainGrid {
+    padding: 0.75rem !important;
+  }
+
+  body.timer-fullscreen-mode #timerSection {
+    height: calc(100dvh - 1.5rem) !important;
+    padding: 0.85rem !important;
+  }
+
+  body.timer-fullscreen-mode #timerModeTabsGroup {
+    display: none !important;
+  }
+
+  body.timer-fullscreen-mode #timerTopControlsRow {
+    justify-content: flex-end !important;
+  }
+
+  body.timer-fullscreen-mode #timerDisplayBox {
+    container-type: inline-size;
+    width: 100% !important;
+    padding: 1.25rem 0.75rem !important;
+  }
+
+  body.timer-fullscreen-mode #timerTopMetaRow {
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 0.35rem !important;
+    margin-bottom: 0.75rem !important;
+  }
+
+  body.timer-fullscreen-mode #timerPhaseBadge,
+  body.timer-fullscreen-mode #timerRoundPill {
+    font-size: 0.7rem !important;
+    line-height: 1.2 !important;
+    padding: 0.2rem 0.6rem !important;
+    text-align: center !important;
+  }
+
+  body.timer-fullscreen-mode #timerDigits {
+    width: 100% !important;
+    max-width: 100% !important;
+    font-size: clamp(2rem, 23cqi, 5.25rem) !important;
+    line-height: 1.05 !important;
+    letter-spacing: 0.02em !important;
+  }
+
+  body.timer-fullscreen-mode #timerSubInfo {
+    font-size: 0.75rem !important;
+    margin-top: 0.6rem !important;
+  }
 }
 
 /* Sur écran paysage (Smart TV / PC), verrouiller le scroll global de la fenêtre

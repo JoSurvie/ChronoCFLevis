@@ -33,7 +33,7 @@
     };
   </script>
 
-  <link rel="stylesheet" href="/css/styles.css?v=20261025-3" />
+  <link rel="stylesheet" href="/css/styles.css?v=20261025-4" />
 </head>
 
 <!-- Par défaut : public-tv-locked masque uniquement le bouton "Options & API" -->
@@ -193,8 +193,8 @@
       class="lg:sticky lg:top-4 lg:col-span-5 xl:col-span-5 bg-box-panel border border-box-border rounded-2xl p-4 md:p-5 shadow-2xl flex flex-col gap-4 z-20"
     >
       <!-- En-tête du Chrono : Sélecteur des 3 Modes + Bouton Mute (Accessible au Coach) -->
-      <div class="flex flex-wrap items-center justify-between gap-2">
-        <div class="grid grid-cols-3 gap-1.5 bg-slate-950 p-1 rounded-xl border border-slate-800 flex-1">
+      <div id="timerTopControlsRow" class="flex flex-wrap items-center justify-between gap-2">
+        <div id="timerModeTabsGroup" class="grid grid-cols-3 gap-1.5 bg-slate-950 p-1 rounded-xl border border-slate-800 flex-1">
           <button
             type="button"
             data-timer-mode="FOR_TIME"
@@ -235,7 +235,7 @@
         class="led-screen-surface rounded-2xl p-5 md:p-6 relative overflow-hidden flex flex-col items-center justify-center min-h-[250px] md:min-h-[280px] transition-all"
       >
         <!-- Bandeau supérieur d'état (Phase + Compteur de Round dynamique) -->
-        <div class="w-full flex items-center justify-between gap-2 mb-3">
+        <div id="timerTopMetaRow" class="w-full flex items-center justify-between gap-2 mb-3">
           <span
             id="timerPhaseBadge"
             class="px-3 py-1 rounded-md text-xs md:text-sm font-extrabold uppercase tracking-widest bg-red-500/20 text-red-400 border border-red-500/30"
@@ -1002,8 +1002,8 @@
   </div>
 
   <!-- Scripts Modulaires -->
-  <script src="/js/audio.js?v=20261025-3"></script>
-  <script src="/js/timer.js?v=20261025-3"></script>
-  <script src="/js/app.js?v=20261025-3"></script>
+  <script src="/js/audio.js?v=20261025-4"></script>
+  <script src="/js/timer.js?v=20261025-4"></script>
+  <script src="/js/app.js?v=20261025-4"></script>
 </body>
 </html>
