@@ -119,6 +119,8 @@
       settingsModal.classList.add('hidden');
       settingsModal.classList.remove('flex');
     }
+
+    syncHeaderOffset();
   }
 
   async function checkSessionStatus() {
@@ -301,13 +303,36 @@
     applyAuthLockState();
   }
 
+  // Détecte si l'appareil est un téléphone en mode portrait
+  function isPhonePortraitMode() {
+    return window.matchMedia('(max-width: 768px) and (orientation: portrait)').matches;
+  }
+
+  // Ajuste dynamiquement le padding-top du body selon la hauteur réelle de #topHeaderBar
+  // pour que les onglets de choix de chronomètre ne soient jamais masqués par la barre du haut
+  function syncHeaderOffset() {
+    const header = document.getElementById('topHeaderBar');
+    if (!header) return;
+    const h = header.offsetHeight;
+    if (h > 0) {
+      document.documentElement.style.setProperty('--header-offset', `${h + 6}px`);
+    }
+  }
+
+  let latestTimerState = null;
+
   // --- Rendu Haute Fréquence de l'afficheur LED ---
   function renderTimerState(state) {
+    latestTimerState = state;
     timerDigits.textContent = state.displayMain;
     timerPhaseBadge.textContent = state.phaseLabel;
     timerSubInfo.textContent = state.displaySub;
     timerRoundPill.textContent = `ROUND ${state.currentRound} / ${state.totalRounds}`;
     timerProgressBar.style.width = `${Math.max(0, Math.min(100, state.progressPercent))}%`;
+
+    // En mode portrait sur téléphone : une fois le chrono lancé (status !== 'IDLE'),
+    // remplacer l'heure par le chrono dans la barre du haut + afficher "Round X/X" si EMOM ou AMRAP/ROUNDS
+    updateHeaderClockOrMobileTimer();
 
     timerDigits.classList.remove(
       'led-glow-ready',
@@ -373,18 +398,73 @@
     }
   }
 
-  // --- Horloge Temps Réel ---
-  function startLiveClock() {
+  // --- Horloge Temps Réel & Bascule Chrono Mobile Portrait ---
+  function updateHeaderClockOrMobileTimer() {
+    const clockContainer = document.getElementById('liveClockContainer');
+    const clockLabel = document.getElementById('liveClockLabel');
     const clockEl = document.getElementById('liveClockDisplay');
-    const updateClock = () => {
-      const now = new Date();
-      const hh = String(now.getHours()).padStart(2, '0');
-      const mm = String(now.getMinutes()).padStart(2, '0');
-      const ss = String(now.getSeconds()).padStart(2, '0');
-      if (clockEl) clockEl.textContent = `${hh}:${mm}:${ss}`;
-    };
-    updateClock();
-    setInterval(updateClock, 1000);
+    const roundBadge = document.getElementById('headerMobileRoundBadge');
+    if (!clockEl || !clockLabel || !roundBadge || !clockContainer) return;
+
+    const portraitPhone = isPhonePortraitMode();
+    const timerLaunched = latestTimerState && latestTimerState.status !== 'IDLE';
+
+    // Si on est en mode portrait sur téléphone ET que le chrono est lancé :
+    // toujours afficher le bloc en haut et remplacer l'heure par le chrono (+ Round X/X pour EMOM ou AMRAP/ROUNDS)
+    if (portraitPhone && timerLaunched) {
+      clockContainer.classList.remove('hidden');
+      clockLabel.textContent = latestTimerState.phase === 'REST' ? 'REST' : 'CHRONO';
+      clockLabel.className =
+        latestTimerState.phase === 'REST'
+          ? 'text-[10px] font-extrabold uppercase tracking-widest text-cyan-400'
+          : 'text-[10px] font-extrabold uppercase tracking-widest text-emerald-400';
+
+      clockEl.textContent = latestTimerState.displayMain;
+      clockEl.className =
+        latestTimerState.phase === 'REST'
+          ? 'font-led text-xl sm:text-2xl font-extrabold text-cyan-400 tracking-wider'
+          : latestTimerState.phase === 'COUNTDOWN'
+          ? 'font-led text-xl sm:text-2xl font-extrabold text-amber-400 tracking-wider'
+          : 'font-led text-xl sm:text-2xl font-extrabold text-emerald-400 tracking-wider';
+
+      if (latestTimerState.mode === 'EMOM' || latestTimerState.mode === 'INTERVALS') {
+        roundBadge.textContent = `Round ${latestTimerState.currentRound}/${latestTimerState.totalRounds}`;
+        roundBadge.classList.remove('hidden');
+      } else {
+        roundBadge.classList.add('hidden');
+      }
+      return;
+    }
+
+    // Sinon : affichage normal de l'horloge (selon la préférence showClock)
+    clockContainer.classList.toggle('hidden', !uiState.showClock);
+    clockLabel.textContent = 'HEURE';
+    clockLabel.className = 'text-[11px] font-bold uppercase tracking-widest text-slate-400';
+    clockEl.className =
+      'font-led text-xl sm:text-2xl md:text-3xl font-extrabold text-amber-400 tracking-wider';
+    roundBadge.classList.add('hidden');
+
+    const now = new Date();
+    const hh = String(now.getHours()).padStart(2, '0');
+    const mm = String(now.getMinutes()).padStart(2, '0');
+    const ss = String(now.getSeconds()).padStart(2, '0');
+    clockEl.textContent = `${hh}:${mm}:${ss}`;
+  }
+
+  function startLiveClock() {
+    updateHeaderClockOrMobileTimer();
+    syncHeaderOffset();
+    setInterval(updateHeaderClockOrMobileTimer, 1000);
+    window.addEventListener('resize', () => {
+      syncHeaderOffset();
+      updateHeaderClockOrMobileTimer();
+    });
+    window.addEventListener('orientationchange', () => {
+      setTimeout(() => {
+        syncHeaderOffset();
+        updateHeaderClockOrMobileTimer();
+      }, 100);
+    });
   }
 
   // --- Contrôles du Chronomètre (Toujours accessibles au Coach) ---
@@ -580,9 +660,9 @@
 
   // --- Personnalisation TV ---
   function applyUiPreferences() {
-    const clockContainer = document.getElementById('liveClockContainer');
-    clockContainer.classList.toggle('hidden', !uiState.showClock);
     document.getElementById('toggleShowClock').checked = uiState.showClock;
+    updateHeaderClockOrMobileTimer();
+    syncHeaderOffset();
 
     const timerSection = document.getElementById('timerSection');
     const wodSection = document.getElementById('wodSection');

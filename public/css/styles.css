@@ -206,9 +206,22 @@ body.timer-fullscreen-mode #timerConfigAccordion {
   z-index: 40;
 }
 
-/* Compensation de la hauteur du header fixe */
+/* Compensation dynamique de la hauteur du header fixe (évite que les choix de chrono soient masqués) */
 body {
-  padding-top: 4.25rem;
+  padding-top: var(--header-offset, 5rem);
+}
+
+/* Mode Portrait sur Téléphone uniquement :
+   Supprimer les boutons "Chrono" et "Chrono Géant" de la barre supérieure */
+@media (max-width: 768px) and (orientation: portrait) {
+  #btnQuickToggleTimer,
+  #btnFullscreenTimer {
+    display: none !important;
+  }
+
+  #btnApiStatusBadge {
+    display: none !important;
+  }
 }
 
 /* Sur écran paysage (Smart TV / PC), verrouiller le scroll global de la fenêtre

@@ -66,14 +66,20 @@
       </div>
     </div>
 
-    <!-- Centre : Horloge Temps Réel (Parfaitement centrée au milieu de la fenêtre) -->
+    <!-- Centre : Horloge Temps Réel (ou Chrono + Round en cours sur mobile portrait) -->
     <div
       id="liveClockContainer"
-      class="lg:absolute lg:left-1/2 lg:-translate-x-1/2 flex items-center gap-2.5 bg-black/80 px-4 py-1.5 rounded-lg border border-slate-800 shadow-inner"
+      class="lg:absolute lg:left-1/2 lg:-translate-x-1/2 flex items-center gap-2 bg-black/80 px-3 sm:px-4 py-1.5 rounded-lg border border-slate-800 shadow-inner"
     >
-      <span class="text-[11px] font-bold uppercase tracking-widest text-slate-400">HEURE</span>
-      <span id="liveClockDisplay" class="font-led text-2xl md:text-3xl font-extrabold text-amber-400 tracking-wider">
+      <span id="liveClockLabel" class="text-[11px] font-bold uppercase tracking-widest text-slate-400">HEURE</span>
+      <span id="liveClockDisplay" class="font-led text-xl sm:text-2xl md:text-3xl font-extrabold text-amber-400 tracking-wider">
         00:00:00
+      </span>
+      <span
+        id="headerMobileRoundBadge"
+        class="hidden font-led text-xs font-extrabold uppercase tracking-wider px-2 py-0.5 rounded bg-slate-900 text-emerald-300 border border-emerald-500/40"
+      >
+        Round 1/1
       </span>
     </div>
 
