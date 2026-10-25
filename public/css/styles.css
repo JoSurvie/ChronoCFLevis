@@ -252,9 +252,14 @@ body {
     position: relative;
   }
 
+  #liveClockDisplay {
+    transform: translateX(-5px);
+  }
+
   #headerMobileRoundBadge {
     margin-left: auto !important;
     flex-shrink: 0;
+    transform: translateX(5px);
   }
 
   #btnQuickToggleTimer,
