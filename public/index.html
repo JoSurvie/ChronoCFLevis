@@ -43,7 +43,7 @@
        ===================================================================== -->
   <header
     id="topHeaderBar"
-    class="h-18 px-5 py-2.5 bg-box-panel/95 backdrop-blur border-b border-box-border flex flex-wrap items-center justify-between gap-4 z-40"
+    class="relative h-18 px-5 py-2.5 bg-box-panel/95 backdrop-blur border-b border-box-border flex flex-wrap items-center justify-between gap-4 z-40"
   >
     <!-- Gauche : Identité Salle & Statut API SugarWOD -->
     <div class="flex items-center gap-4">
@@ -52,9 +52,6 @@
         <div>
           <span class="font-led text-xl md:text-2xl font-black tracking-wider text-white">
             CHRONO<span class="text-red-500">CROSSFIT</span>
-          </span>
-          <span class="hidden sm:inline-block ml-2 text-[11px] font-bold uppercase tracking-widest px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
-            TV DISPLAY
           </span>
         </div>
       </div>
@@ -69,10 +66,10 @@
       </div>
     </div>
 
-    <!-- Centre : Horloge Temps Réel -->
+    <!-- Centre : Horloge Temps Réel (Parfaitement centrée au milieu de la fenêtre) -->
     <div
       id="liveClockContainer"
-      class="flex items-center gap-2.5 bg-black/80 px-4 py-1.5 rounded-lg border border-slate-800 shadow-inner"
+      class="lg:absolute lg:left-1/2 lg:-translate-x-1/2 flex items-center gap-2.5 bg-black/80 px-4 py-1.5 rounded-lg border border-slate-800 shadow-inner"
     >
       <span class="text-[11px] font-bold uppercase tracking-widest text-slate-400">HEURE</span>
       <span id="liveClockDisplay" class="font-led text-2xl md:text-3xl font-extrabold text-amber-400 tracking-wider">

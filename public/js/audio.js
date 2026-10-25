@@ -137,25 +137,10 @@ class SoundEngine {
   }
 
   /**
-   * Signal sonore de passage en REST (Pause)
+   * Signal sonore de passage en REST (Pause) — Identique au son de fin de minute EMOM
    */
   beepIntervalRest() {
-    this.playTone({
-      freq: 659.25, // E5
-      duration: 0.16,
-      type: 'triangle',
-      harmonicType: 'square',
-      harmonicGain: 0.22,
-      delay: 0
-    });
-    this.playTone({
-      freq: 440, // A4
-      duration: 0.38,
-      type: 'triangle',
-      harmonicType: 'square',
-      harmonicGain: 0.22,
-      delay: 0.18
-    });
+    this.beepIntervalWork();
   }
 
   /**

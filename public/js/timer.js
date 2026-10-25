@@ -363,7 +363,7 @@ class CrossfitTimer {
     // Signal sonore lors des transitions vers REST ou vers un nouveau round WORK
     if (this.status === 'RUNNING' && elapsedInPhaseMs < 900) {
       if (currentPhase === 'REST') {
-        this.triggerBeepOnce(`int-r${currentRound}-rest`, () => this.sound.beepIntervalRest());
+        this.triggerBeepOnce(`int-r${currentRound}-rest`, () => this.sound.beepIntervalWork());
       } else if (currentRound > 1) {
         this.triggerBeepOnce(`int-r${currentRound}-work`, () => {
           this.goBannerUntil = performance.now() + 950;
