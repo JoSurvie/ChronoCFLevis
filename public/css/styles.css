@@ -267,12 +267,16 @@ body {
   #btnApiStatusBadge {
     display: none !important;
   }
+}
 
-  /* Plein écran ("Chrono Géant") en mode portrait sur téléphone :
-     - Masquer la barre du haut (#topHeaderBar)
-     - Masquer les boutons "FOR TIME", "EMOM", "AMRAP / ROUNDS" (#timerModeTabsGroup)
-     - Rendre le chrono (#timerDigits) responsive par rapport à sa fenêtre (#timerDisplayBox via container-type)
-     - Empiler les indications au-dessus du chrono (#timerTopMetaRow) l'une au-dessus de l'autre en petit */
+/* Plein écran ("Chrono Géant") sur téléphone portable (Portrait ET Paysage) :
+   - Masquer la barre du haut (#topHeaderBar)
+   - Masquer les boutons "FOR TIME", "EMOM", "AMRAP / ROUNDS" (#timerModeTabsGroup)
+   - Rendre le chrono (#timerDigits) responsive par rapport à sa fenêtre (#timerDisplayBox via container-type: size)
+   - Empiler les indications au-dessus du chrono (#timerTopMetaRow) l'une au-dessus de l'autre en petit */
+@media (max-width: 768px) and (orientation: portrait),
+       (max-width: 1023px) and (orientation: landscape),
+       (max-height: 600px) and (orientation: landscape) {
   body.timer-fullscreen-mode {
     padding-top: 0 !important;
   }
@@ -282,12 +286,14 @@ body {
   }
 
   body.timer-fullscreen-mode #mainGrid {
-    padding: 0.75rem !important;
+    padding: 0.5rem !important;
   }
 
   body.timer-fullscreen-mode #timerSection {
-    height: calc(100dvh - 1.5rem) !important;
-    padding: 0.85rem !important;
+    height: calc(100dvh - 1rem) !important;
+    max-height: calc(100dvh - 1rem) !important;
+    padding: 0.65rem !important;
+    gap: 0.5rem !important;
   }
 
   body.timer-fullscreen-mode #timerModeTabsGroup {
@@ -299,17 +305,19 @@ body {
   }
 
   body.timer-fullscreen-mode #timerDisplayBox {
-    container-type: inline-size;
+    container-type: size;
     width: 100% !important;
-    padding: 1.25rem 0.75rem !important;
+    min-height: 0 !important;
+    flex: 1 1 0% !important;
+    padding: 0.75rem !important;
   }
 
   body.timer-fullscreen-mode #timerTopMetaRow {
     flex-direction: column !important;
     align-items: center !important;
     justify-content: center !important;
-    gap: 0.35rem !important;
-    margin-bottom: 0.75rem !important;
+    gap: 0.25rem !important;
+    margin-bottom: 0.35rem !important;
   }
 
   body.timer-fullscreen-mode #timerPhaseBadge,
@@ -323,14 +331,15 @@ body {
   body.timer-fullscreen-mode #timerDigits {
     width: 100% !important;
     max-width: 100% !important;
-    font-size: clamp(2rem, 23cqi, 5.25rem) !important;
-    line-height: 1.05 !important;
+    font-size: clamp(2rem, min(23cqi, 42cqb), 9rem) !important;
+    line-height: 1.02 !important;
     letter-spacing: 0.02em !important;
+    margin: 0.15rem 0 !important;
   }
 
   body.timer-fullscreen-mode #timerSubInfo {
     font-size: 0.75rem !important;
-    margin-top: 0.6rem !important;
+    margin-top: 0.35rem !important;
   }
 }
 
