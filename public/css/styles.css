@@ -244,9 +244,17 @@ body {
 
   #liveClockContainer {
     display: flex !important;
-    flex: 1 1 auto;
+    flex: 1 1 0% !important;
+    width: 100%;
     min-width: 0;
     justify-content: space-between;
+    align-items: center;
+    position: relative;
+  }
+
+  #headerMobileRoundBadge {
+    margin-left: auto !important;
+    flex-shrink: 0;
   }
 
   #btnQuickToggleTimer,

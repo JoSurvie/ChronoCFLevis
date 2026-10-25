@@ -33,7 +33,7 @@
     };
   </script>
 
-  <link rel="stylesheet" href="/css/styles.css" />
+  <link rel="stylesheet" href="/css/styles.css?v=20261025-2" />
 </head>
 
 <!-- Par défaut : public-tv-locked masque uniquement le bouton "Options & API" -->
@@ -84,17 +84,17 @@
       <!-- Afficheur Horloge Temps Réel / Chrono Mobile -->
       <div
         id="liveClockContainer"
-        class="flex items-center justify-between gap-2 bg-black/80 px-3 sm:px-4 py-1.5 rounded-lg border border-slate-800 shadow-inner"
+        class="relative flex-1 min-w-0 flex items-center justify-between gap-2 bg-black/80 px-3 sm:px-4 py-1.5 rounded-lg border border-slate-800 shadow-inner"
       >
-        <div class="flex items-center gap-2">
-          <span id="liveClockLabel" class="text-[11px] font-bold uppercase tracking-widest text-slate-400">HEURE</span>
-          <span id="liveClockDisplay" class="font-led text-xl sm:text-2xl md:text-3xl font-extrabold text-amber-400 tracking-wider">
+        <div class="flex items-center gap-2 min-w-0">
+          <span id="liveClockLabel" class="shrink-0 text-[11px] font-bold uppercase tracking-widest text-slate-400">HEURE</span>
+          <span id="liveClockDisplay" class="font-led text-xl sm:text-2xl md:text-3xl font-extrabold text-amber-400 tracking-wider tabular-nums">
             00:00:00
           </span>
         </div>
         <span
           id="headerMobileRoundBadge"
-          class="hidden font-led text-xs font-extrabold uppercase tracking-wider px-2 py-0.5 rounded bg-slate-900 text-emerald-300 border border-emerald-500/40 shrink-0"
+          class="hidden ml-auto font-led text-xs font-extrabold uppercase tracking-wider px-2 py-0.5 rounded bg-slate-900 text-emerald-300 border border-emerald-500/40 shrink-0 text-right"
         >
           Round 1/1
         </span>
@@ -1002,8 +1002,8 @@
   </div>
 
   <!-- Scripts Modulaires -->
-  <script src="/js/audio.js"></script>
-  <script src="/js/timer.js"></script>
-  <script src="/js/app.js"></script>
+  <script src="/js/audio.js?v=20261025-2"></script>
+  <script src="/js/timer.js?v=20261025-2"></script>
+  <script src="/js/app.js?v=20261025-2"></script>
 </body>
 </html>
