@@ -850,6 +850,7 @@
       }
 
       currentWorkouts = Array.isArray(data.workouts) ? data.workouts : [];
+      populateWodBlockSelect();
       renderWorkouts();
     } catch (err) {
       container.innerHTML = `
@@ -857,6 +858,26 @@
           <p class="font-bold text-red-300">Impossible de récupérer les WODs (${escapeHtml(err.message)})</p>
         </div>
       `;
+    }
+  }
+
+  function populateWodBlockSelect() {
+    const select = document.getElementById('selectWodBlockFilter');
+    if (!select) return;
+    const prevValue = select.value || 'all';
+    select.innerHTML = '<option value="all">📋 Tous les blocs du WOD</option>';
+
+    (currentWorkouts || []).forEach((wod, idx) => {
+      const opt = document.createElement('option');
+      opt.value = String(idx);
+      opt.textContent = `${idx + 1}. ${wod.title}`;
+      select.appendChild(opt);
+    });
+
+    if ([...select.options].some((o) => o.value === prevValue)) {
+      select.value = prevValue;
+    } else {
+      select.value = 'all';
     }
   }
 
@@ -883,17 +904,25 @@
     }
 
     const f = uiState.wodFilters;
+    const blockFilterEl = document.getElementById('selectWodBlockFilter');
+    const selectedBlockVal = blockFilterEl ? blockFilterEl.value : 'all';
 
-    // En mode "stack" (Vue : Empilée) ou s'il n'y a qu'un seul WOD :
+    // Filtrer selon le menu déroulant des blocs du WOD (ou afficher tous les blocs)
+    const workoutsToDisplay =
+      selectedBlockVal !== 'all' && currentWorkouts[Number(selectedBlockVal)]
+        ? [{ wod: currentWorkouts[Number(selectedBlockVal)], originalIndex: Number(selectedBlockVal) }]
+        : currentWorkouts.map((wod, idx) => ({ wod, originalIndex: idx }));
+
+    // En mode "stack" (Vue : Empilée) ou s'il n'y a qu'un seul bloc affiché :
     // Chaque bloc est affiché l'un au-dessus de l'autre en utilisant 100% de la largeur disponible
     // de la zone WOD (qui s'adapte automatiquement selon que le chrono est affiché ou masqué).
-    const isStackView = uiState.wodLayout === 'stack' || currentWorkouts.length === 1;
+    const isStackView = uiState.wodLayout === 'stack' || workoutsToDisplay.length === 1;
     container.className = isStackView
       ? 'wod-zoomable grid grid-cols-1 gap-4 w-full'
       : 'wod-zoomable grid grid-cols-1 xl:grid-cols-2 gap-4 w-full';
 
-    container.innerHTML = currentWorkouts
-      .map((wod, idx) => {
+    container.innerHTML = workoutsToDisplay
+      .map(({ wod, originalIndex }) => {
         const movementsHtml =
           f.movements && wod.movements && wod.movements.length > 0
             ? `
@@ -949,7 +978,7 @@
           ? `
           <button
             type="button"
-            data-load-wod-timer="${idx}"
+            data-load-wod-timer="${originalIndex}"
             title="Charger automatiquement ce format dans le chronomètre"
             class="px-3 py-1.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 text-xs font-extrabold uppercase tracking-wider transition flex items-center gap-1.5 shrink-0"
           >
@@ -959,7 +988,7 @@
           : '';
 
         return `
-          <article class="w-full bg-box-panel border border-box-border rounded-2xl p-5 shadow-xl flex flex-col justify-between gap-3.5 hover:border-slate-600 transition">
+          <article id="wodCard_${originalIndex}" class="w-full bg-box-panel border border-box-border rounded-2xl p-5 shadow-xl flex flex-col justify-between gap-3.5 hover:border-slate-600 transition">
             <div class="space-y-3.5">
               <div class="flex flex-wrap items-start justify-between gap-2 border-b border-slate-800 pb-3">
                 <div>
@@ -1025,6 +1054,18 @@
       loadTracks();
       loadWorkouts();
     });
+
+    // Menu déroulant de sélection d'un bloc du WOD dans la fenêtre Workout
+    const selectWodBlockFilter = document.getElementById('selectWodBlockFilter');
+    if (selectWodBlockFilter) {
+      selectWodBlockFilter.addEventListener('change', () => {
+        renderWorkouts();
+        const scrollViewport = document.getElementById('wodScrollViewport');
+        if (scrollViewport) {
+          scrollViewport.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+      });
+    }
 
     // Bouton "Vue" : bascule entre Vue Grille (2 colonnes) et Vue Empilée (1 colonne pleine largeur)
     const btnToggleWodLayout = document.getElementById('btnToggleWodLayout');

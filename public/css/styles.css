@@ -197,6 +197,16 @@ body.timer-fullscreen-mode #timerConfigAccordion {
   display: none !important;
 }
 
+/* Fenêtre de défilement dédiée à la zone Workout sur écran TV paysage :
+   Le chronomètre reste 100% fixe à gauche pendant que l'on scrolle les blocs du WOD à droite */
+@media (min-width: 1024px) {
+  .wod-scroll-viewport {
+    max-height: calc(100vh - 11.5rem);
+    overflow-y: auto;
+    scroll-behavior: smooth;
+  }
+}
+
 /* Scrollbar discrète adaptée Dark Mode TV */
 ::-webkit-scrollbar {
   width: 8px;
