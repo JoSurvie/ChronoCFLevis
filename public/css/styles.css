@@ -1,0 +1,205 @@
+/* =========================================================================
+   CHRONOCROSSFIT — SMART TV & LED COMPETITION DISPLAY STYLES
+   Optimisé pour affichage 16:9 paysage à forte luminosité / contraste
+   ========================================================================= */
+
+:root {
+  --ui-zoom: 1;
+  --led-red: #ff2a2a;
+  --led-green: #00ff66;
+  --led-amber: #ffb800;
+  --led-cyan: #00e5ff;
+  --bg-deep: #06080d;
+  --bg-panel: #0d121c;
+  --bg-card: #121927;
+}
+
+* {
+  box-sizing: border-box;
+  user-select: none;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--bg-deep);
+  color: #f8fafc;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  overflow-x: hidden;
+}
+
+/* Typographie Digitale type Afficheur LED de Compétition */
+.font-led {
+  font-family: 'Orbitron', 'JetBrains Mono', monospace;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+}
+
+.font-mono-tabular {
+  font-family: 'JetBrains Mono', monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Effet d'illumination LED selon la phase du chrono */
+.led-glow-ready {
+  color: #ff3b3b;
+  text-shadow:
+    0 0 18px rgba(255, 59, 59, 0.55),
+    0 0 42px rgba(255, 42, 42, 0.25);
+}
+
+.led-glow-countdown {
+  color: var(--led-amber);
+  text-shadow:
+    0 0 22px rgba(255, 184, 0, 0.7),
+    0 0 50px rgba(255, 184, 0, 0.35);
+}
+
+.led-glow-work {
+  color: var(--led-green);
+  text-shadow:
+    0 0 22px rgba(0, 255, 102, 0.65),
+    0 0 48px rgba(0, 255, 102, 0.3);
+}
+
+.led-glow-rest {
+  color: var(--led-cyan);
+  text-shadow:
+    0 0 22px rgba(0, 229, 255, 0.65),
+    0 0 48px rgba(0, 229, 255, 0.3);
+}
+
+.led-glow-done {
+  color: var(--led-red);
+  text-shadow:
+    0 0 26px rgba(255, 42, 42, 0.8),
+    0 0 60px rgba(255, 42, 42, 0.45);
+}
+
+/* Fond matriciel subtil type panneau LED */
+.led-screen-surface {
+  background-color: #05070b;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.045) 1px, transparent 0);
+  background-size: 6px 6px;
+  box-shadow:
+    inset 0 0 36px rgba(0, 0, 0, 0.9),
+    0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+/* Flash visuel plein cadre lors des changements d'intervalles EMOM / GO! */
+@keyframes pulse-flash-green {
+  0% {
+    box-shadow: inset 0 0 0 4px rgba(0, 255, 102, 0.95), 0 0 55px rgba(0, 255, 102, 0.55);
+  }
+  100% {
+    box-shadow: inset 0 0 36px rgba(0, 0, 0, 0.9), 0 0 0 1px rgba(255, 255, 255, 0.08);
+  }
+}
+
+@keyframes pulse-flash-cyan {
+  0% {
+    box-shadow: inset 0 0 0 4px rgba(0, 229, 255, 0.95), 0 0 55px rgba(0, 229, 255, 0.55);
+  }
+  100% {
+    box-shadow: inset 0 0 36px rgba(0, 0, 0, 0.9), 0 0 0 1px rgba(255, 255, 255, 0.08);
+  }
+}
+
+.flash-work {
+  animation: pulse-flash-green 0.85s ease-out;
+}
+
+.flash-rest {
+  animation: pulse-flash-cyan 0.85s ease-out;
+}
+
+/* Mise à l'échelle dynamique du Zoom Global pour la lisibilité à distance sur TV */
+.wod-zoomable {
+  font-size: calc(1rem * var(--ui-zoom));
+  line-height: 1.5;
+}
+
+.wod-zoomable .wod-card-title {
+  font-size: calc(1.45rem * var(--ui-zoom));
+  line-height: 1.25;
+}
+
+.wod-zoomable .wod-movement-line {
+  font-size: calc(1.18rem * var(--ui-zoom));
+  line-height: 1.45;
+}
+
+.wod-zoomable .wod-badge-block {
+  font-size: calc(0.98rem * var(--ui-zoom));
+  line-height: 1.4;
+}
+
+/* Mode Chronomètre Géant Plein Écran TV */
+body.timer-fullscreen-mode #mainGrid {
+  display: block !important;
+}
+
+body.timer-fullscreen-mode #wodSection {
+  display: none !important;
+}
+
+body.timer-fullscreen-mode #timerSection {
+  width: 100% !important;
+  max-width: 100% !important;
+  height: calc(100vh - 5.2rem);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+body.timer-fullscreen-mode #timerDisplayBox {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 2rem;
+}
+
+body.timer-fullscreen-mode #timerDigits {
+  font-size: clamp(6rem, 21vw, 22rem) !important;
+  line-height: 0.95 !important;
+}
+
+body.timer-fullscreen-mode #timerPhaseBadge {
+  font-size: clamp(1.3rem, 2.5vw, 2.5rem) !important;
+  padding: 0.5rem 1.5rem !important;
+}
+
+body.timer-fullscreen-mode #timerSubInfo {
+  font-size: clamp(1.15rem, 2vw, 2.1rem) !important;
+  margin-top: 1.2rem !important;
+}
+
+body.timer-fullscreen-mode #timerRoundPill {
+  font-size: clamp(1.2rem, 2.2vw, 2.2rem) !important;
+}
+
+body.timer-fullscreen-mode #timerConfigAccordion {
+  display: none !important;
+}
+
+/* Scrollbar discrète adaptée Dark Mode TV */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #080b11;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #232f46;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #38496b;
+}

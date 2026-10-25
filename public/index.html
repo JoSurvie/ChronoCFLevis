@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html lang="fr" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CHRONOCROSSFIT — Smart TV Timer &amp; SugarWOD Display</title>
+
+  <!-- Google Fonts : Orbitron (Afficheur LED Compétition), JetBrains Mono & Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&family=JetBrains+Mono:wght@600;700;800&family=Orbitron:wght@700;800;900&display=swap"
+    rel="stylesheet"
+  />
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            box: {
+              bg: '#06080d',
+              panel: '#0d121c',
+              card: '#131b2b',
+              border: '#22304a'
+            }
+          }
+        }
+      }
+    };
+  </script>
+
+  <link rel="stylesheet" href="/css/styles.css" />
+</head>
+
+<body class="min-h-screen bg-box-bg text-slate-100 flex flex-col justify-between selection:bg-red-600 selection:text-white">
+  <!-- =====================================================================
+       BARRE SUPÉRIEURE TV (Logo, Statut SugarWOD, Contrôles rapides, Horloge)
+       ===================================================================== -->
+  <header class="h-18 px-5 py-2.5 bg-box-panel/95 border-b border-box-border flex flex-wrap items-center justify-between gap-4 z-30">
+    <!-- Gauche : Identité Salle & Statut API SugarWOD -->
+    <div class="flex items-center gap-4">
+      <div class="flex items-center gap-2.5">
+        <div class="w-3.5 h-8 rounded-sm bg-red-600 shadow-[0_0_15px_#ff2a2a]"></div>
+        <div>
+          <span class="font-led text-xl md:text-2xl font-black tracking-wider text-white">
+            CHRONO<span class="text-red-500">CROSSFIT</span>
+          </span>
+          <span class="hidden sm:inline-block ml-2 text-[11px] font-bold uppercase tracking-widest px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
+            TV DISPLAY
+          </span>
+        </div>
+      </div>
+
+      <!-- Badge Source SugarWOD / Démo -->
+      <button
+        id="btnApiStatusBadge"
+        type="button"
+        title="Configurer la connexion SugarWOD"
+        class="flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-slate-900 border border-slate-700 hover:border-slate-500 transition"
+      >
+        <span id="apiStatusDot" class="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse"></span>
+        <span id="apiStatusText">SugarWOD : Démo</span>
+      </button>
+    </div>
+
+    <!-- Centre : Horloge Temps Réel (Masquable via les options) -->
+    <div
+      id="liveClockContainer"
+      class="flex items-center gap-2.5 bg-black/80 px-4 py-1.5 rounded-lg border border-slate-800 shadow-inner"
+    >
+      <span class="text-[11px] font-bold uppercase tracking-widest text-slate-400">HEURE</span>
+      <span id="liveClockDisplay" class="font-led text-2xl md:text-3xl font-extrabold text-amber-400 tracking-wider">
+        00:00:00
+      </span>
+    </div>
+
+    <!-- Droite : Contrôles Rapides TV (Zoom, Visibilité, Plein écran, Options) -->
+    <div class="flex items-center gap-2">
+      <!-- Contrôle de Zoom Global Rapide -->
+      <div class="hidden xl:flex items-center bg-slate-900/90 border border-slate-800 rounded-lg px-2 py-1 gap-1.5">
+        <button
+          id="btnZoomOutQuick"
+          type="button"
+          title="Réduire la taille de police (Zoom Out)"
+          class="w-7 h-7 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-sm flex items-center justify-center transition"
+        >
+          A-
+        </button>
+        <span id="zoomLabelQuick" class="font-mono-tabular text-xs font-bold text-slate-300 w-11 text-center">
+          100%
+        </span>
+        <button
+          id="btnZoomInQuick"
+          type="button"
+          title="Agrandir la taille de police (Zoom In)"
+          class="w-7 h-7 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-sm flex items-center justify-center transition"
+        >
+          A+
+        </button>
+      </div>
+
+      <!-- Bouton Afficher/Masquer Chrono rapide -->
+      <button
+        id="btnQuickToggleTimer"
+        type="button"
+        class="px-3 py-2 rounded-lg bg-slate-800/90 hover:bg-slate-700 text-xs font-bold uppercase tracking-wider text-slate-200 border border-slate-700 transition flex items-center gap-1.5"
+        title="Afficher ou masquer le chronomètre"
+      >
+        <span>⏱️ Chrono</span>
+      </button>
+
+      <!-- Bouton Chrono Plein Écran Géant -->
+      <button
+        id="btnFullscreenTimer"
+        type="button"
+        class="px-3.5 py-2 rounded-lg bg-red-600/20 hover:bg-red-600/35 text-red-300 border border-red-500/40 text-xs font-extrabold uppercase tracking-wider transition flex items-center gap-1.5"
+        title="Basculer le chronomètre en Plein Écran Géant sur toute la TV"
+      >
+        <span id="fullscreenTimerIcon">⛶</span>
+        <span id="fullscreenTimerLabel">Chrono Géant</span>
+      </button>
+
+      <!-- Bouton Panneau d'Options & Personnalisation -->
+      <button
+        id="btnOpenSettings"
+        type="button"
+        class="px-3.5 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-white border border-slate-600 text-xs font-extrabold uppercase tracking-wider transition flex items-center gap-2"
+      >
+        <span>⚙️ Options &amp; API</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- =====================================================================
+       GRILLE PRINCIPALE PAYSAGE SMART TV (Gauche : Chrono | Droite : WOD)
+       ===================================================================== -->
+  <main
+    id="mainGrid"
+    class="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-5 p-4 md:p-5 items-start"
+  >
+    <!-- ===================================================================
+         COLONNE GAUCHE (En haut à gauche) : CHRONOMÈTRE DE COMPÉTITION LED
+         =================================================================== -->
+    <section
+      id="timerSection"
+      class="lg:col-span-5 xl:col-span-5 bg-box-panel border border-box-border rounded-2xl p-4 md:p-5 shadow-2xl flex flex-col gap-4"
+    >
+      <!-- En-tête du Chrono : Sélecteur des 3 Modes + Bouton Mute -->
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <div class="grid grid-cols-3 gap-1.5 bg-slate-950 p-1 rounded-xl border border-slate-800 flex-1">
+          <button
+            type="button"
+            data-timer-mode="FOR_TIME"
+            class="timer-mode-tab py-2 px-2 rounded-lg text-xs md:text-sm font-extrabold uppercase tracking-wider transition bg-red-600 text-white shadow"
+          >
+            FOR TIME
+          </button>
+          <button
+            type="button"
+            data-timer-mode="EMOM"
+            class="timer-mode-tab py-2 px-2 rounded-lg text-xs md:text-sm font-extrabold uppercase tracking-wider transition text-slate-400 hover:text-white"
+          >
+            EMOM
+          </button>
+          <button
+            type="button"
+            data-timer-mode="INTERVALS"
+            class="timer-mode-tab py-2 px-2 rounded-lg text-xs md:text-sm font-extrabold uppercase tracking-wider transition text-slate-400 hover:text-white"
+          >
+            AMRAP / ROUNDS
+          </button>
+        </div>
+
+        <!-- Contrôle Audio Mute / Test Bip -->
+        <button
+          id="btnMuteAudio"
+          type="button"
+          title="Activer / Couper le son du chronomètre"
+          class="px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-sm font-bold text-slate-200 transition"
+        >
+          🔊
+        </button>
+      </div>
+
+      <!-- ÉCRAN D'AFFICHAGE LED PRINCIPAL -->
+      <div
+        id="timerDisplayBox"
+        class="led-screen-surface rounded-2xl p-5 md:p-6 relative overflow-hidden flex flex-col items-center justify-center min-h-[250px] md:min-h-[280px] transition-all"
+      >
+        <!-- Bandeau supérieur d'état (Phase + Compteur de Round dynamique) -->
+        <div class="w-full flex items-center justify-between gap-2 mb-3">
+          <span
+            id="timerPhaseBadge"
+            class="px-3 py-1 rounded-md text-xs md:text-sm font-extrabold uppercase tracking-widest bg-red-500/20 text-red-400 border border-red-500/30"
+          >
+            FOR TIME (COUNT UP)
+          </span>
+
+          <span
+            id="timerRoundPill"
+            class="font-led px-3 py-1 rounded-md text-xs md:text-sm font-extrabold uppercase tracking-wider bg-slate-900/90 text-slate-200 border border-slate-700"
+          >
+            ROUND 1 / 1
+          </span>
+        </div>
+
+        <!-- Chiffres Géants LED -->
+        <div
+          id="timerDigits"
+          class="font-led text-6xl sm:text-7xl xl:text-8xl font-black tracking-wider led-glow-ready my-2 select-none text-center"
+        >
+          00:00
+        </div>
+
+        <!-- Sous-information (Time Cap, Temps Total Restant, Décompte 10s) -->
+        <div
+          id="timerSubInfo"
+          class="font-mono-tabular text-xs sm:text-sm md:text-base font-bold uppercase tracking-widest text-slate-300 text-center mt-1"
+        >
+          TIME CAP : 15:00 • DÉCOMPTE 10S
+        </div>
+
+        <!-- Barre de progression lumineuse en bas de l'afficheur LED -->
+        <div class="w-full h-2.5 bg-slate-900/90 rounded-full overflow-hidden mt-5 border border-slate-800">
+          <div
+            id="timerProgressBar"
+            class="h-full bg-gradient-to-r from-emerald-500 via-lime-400 to-amber-400 transition-all duration-100"
+            style="width: 0%"
+          ></div>
+        </div>
+      </div>
+
+      <!-- BOUTONS D'ACTION DU CHRONOMÈTRE (START / PAUSE / RESET / PLEIN ÉCRAN) -->
+      <div class="grid grid-cols-12 gap-2.5">
+        <button
+          id="btnTimerStartPause"
+          type="button"
+          class="col-span-6 py-3.5 px-4 rounded-xl font-led text-base md:text-lg font-black uppercase tracking-wider bg-emerald-600 hover:bg-emerald-500 text-slate-950 shadow-[0_0_20px_rgba(16,185,129,0.35)] transition flex items-center justify-center gap-2"
+        >
+          <span id="startPauseIcon">▶</span>
+          <span id="startPauseLabel">START (10s)</span>
+        </button>
+
+        <button
+          id="btnTimerReset"
+          type="button"
+          class="col-span-3 py-3.5 px-3 rounded-xl font-led text-sm md:text-base font-bold uppercase tracking-wider bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition flex items-center justify-center"
+        >
+          ↺ RESET
+        </button>
+
+        <button
+          id="btnTimerExpandCard"
+          type="button"
+          title="Afficher le chronomètre en Plein Écran Géant"
+          class="col-span-3 py-3.5 px-3 rounded-xl font-led text-xs md:text-sm font-bold uppercase tracking-wider bg-slate-900 hover:bg-slate-800 text-red-400 border border-red-500/30 transition flex items-center justify-center gap-1"
+        >
+          ⛶ GÉANT
+        </button>
+      </div>
+
+      <!-- PANNEAU DE PARAMÉTRAGE DU MODE SÉLECTIONNÉ -->
+      <div id="timerConfigAccordion" class="bg-slate-950/90 border border-slate-800/90 rounded-xl p-4 space-y-3">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+          <span class="text-xs font-extrabold uppercase tracking-wider text-slate-400">
+            Paramètres du Chronomètre
+          </span>
+          <span class="text-[11px] font-bold text-amber-400 bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 rounded">
+            Décompte initial : 10s ("10, 9, 8... GO!")
+          </span>
+        </div>
+
+        <!-- 1. Configuration Mode FOR TIME -->
+        <div id="configPanelForTime" class="space-y-3">
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-[11px] font-bold uppercase text-slate-400 mb-1">
+                Sens du Chrono
+              </label>
+              <div class="grid grid-cols-2 gap-1 bg-slate-900 p-1 rounded-lg border border-slate-800">
+                <button
+                  type="button"
+                  id="btnDirUp"
+                  class="py-1.5 rounded text-xs font-extrabold uppercase bg-emerald-600 text-slate-950 transition"
+                >
+                  ↑ Count Up
+                </button>
+                <button
+                  type="button"
+                  id="btnDirDown"
+                  class="py-1.5 rounded text-xs font-extrabold uppercase text-slate-400 hover:text-white transition"
+                >
+                  ↓ Count Down
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-[11px] font-bold uppercase text-slate-400 mb-1">
+                Time Cap (Min : Sec)
+              </label>
+              <div class="flex items-center gap-1.5">
+                <input
+                  id="inputForTimeMin"
+                  type="number"
+                  min="0"
+                  max="180"
+                  value="15"
+                  class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-center font-mono-tabular font-bold text-white"
+                />
+                <span class="font-bold text-slate-500">:</span>
+                <input
+                  id="inputForTimeSec"
+                  type="number"
+                  min="0"
+                  max="59"
+                  value="0"
+                  class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-center font-mono-tabular font-bold text-white"
+                />
+              </div>
+            </div>
+          </div>
+
+          <!-- Presets rapides For Time -->
+          <div class="flex flex-wrap items-center gap-1.5 pt-1">
+            <span class="text-[11px] font-bold uppercase text-slate-500 mr-1">Caps rapides :</span>
+            <button type="button" data-ft-preset="420" class="px-2 py-1 text-xs font-bold rounded bg-slate-900 hover:bg-slate-800 border border-slate-700">7:00</button>
+            <button type="button" data-ft-preset="600" class="px-2 py-1 text-xs font-bold rounded bg-slate-900 hover:bg-slate-800 border border-slate-700">10:00</button>
+            <button type="button" data-ft-preset="720" class="px-2 py-1 text-xs font-bold rounded bg-slate-900 hover:bg-slate-800 border border-slate-700">12:00</button>
+            <button type="button" data-ft-preset="900" class="px-2 py-1 text-xs font-bold rounded bg-slate-900 hover:bg-slate-800 border border-slate-700">15:00</button>
+            <button type="button" data-ft-preset="1200" class="px-2 py-1 text-xs font-bold rounded bg-slate-900 hover:bg-slate-800 border border-slate-700">20:00</button>
+            <button type="button" data-ft-preset="1800" class="px-2 py-1 text-xs font-bold rounded bg-slate-900 hover:bg-slate-800 border border-slate-700">30:00</button>
+          </div>
+        </div>
+
+        <!-- 2. Configuration Mode EMOM -->
+        <div id="configPanelEmom" class="hidden space-y-3">
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-[11px] font-bold uppercase text-slate-400 mb-1">
+                Intervalle (Secondes)
+              </label>
+              <select
+                id="selectEmomEvery"
+                class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-2 font-bold text-sm text-white"
+              >
+                <option value="30">Toutes les 30 sec (E30SOM)</option>
+                <option value="60" selected>Chaque 1 minute (EMOM)</option>
+                <option value="90">Toutes les 1m30s (E90SOM)</option>
+                <option value="120">Toutes les 2 minutes (E2MOM)</option>
+                <option value="180">Toutes les 3 minutes (E3MOM)</option>
+                <option value="240">Toutes les 4 minutes (E4MOM)</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-[11px] font-bold uppercase text-slate-400 mb-1">
+                Nombre d'intervalles (Rounds)
+              </label>
+              <input
+                id="inputEmomRounds"
+                type="number"
+                min="1"
+                max="120"
+                value="10"
+                class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-center font-mono-tabular font-bold text-white"
+              />
+            </div>
+          </div>
+
+          <div class="flex flex-wrap items-center justify-between text-xs text-slate-400 pt-1">
+            <span>Presets EMOM :</span>
+            <div class="flex flex-wrap gap-1.5">
+              <button type="button" data-emom-preset="60,10" class="px-2 py-1 font-bold rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200">EMOM 10'</button>
+              <button type="button" data-emom-preset="60,12" class="px-2 py-1 font-bold rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200">EMOM 12'</button>
+              <button type="button" data-emom-preset="120,6" class="px-2 py-1 font-bold rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200">E2MOM 12'</button>
+              <button type="button" data-emom-preset="180,5" class="px-2 py-1 font-bold rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200">E3MOM 15'</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3. Configuration Mode AMRAP / INTERVALLES / ROUNDS -->
+        <div id="configPanelIntervals" class="hidden space-y-3">
+          <div class="grid grid-cols-3 gap-2.5">
+            <div>
+              <label class="block text-[11px] font-bold uppercase text-emerald-400 mb-1">
+                Work (Min:Sec)
+              </label>
+              <div class="flex items-center gap-1">
+                <input
+                  id="inputWorkMin"
+                  type="number"
+                  min="0"
+                  max="120"
+                  value="0"
+                  class="w-full bg-slate-900 border border-slate-700 rounded-lg px-1.5 py-1.5 text-center font-mono-tabular font-bold text-white"
+                />
+                <span>:</span>
+                <input
+                  id="inputWorkSec"
+                  type="number"
+                  min="0"
+                  max="59"
+                  value="40"
+                  class="w-full bg-slate-900 border border-slate-700 rounded-lg px-1.5 py-1.5 text-center font-mono-tabular font-bold text-white"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-[11px] font-bold uppercase text-cyan-400 mb-1">
+                Rest (Min:Sec)
+              </label>
+              <div class="flex items-center gap-1">
+                <input
+                  id="inputRestMin"
+                  type="number"
+                  min="0"
+                  max="120"
+                  value="0"
+                  class="w-full bg-slate-900 border border-slate-700 rounded-lg px-1.5 py-1.5 text-center font-mono-tabular font-bold text-white"
+                />
+                <span>:</span>
+                <input
+                  id="inputRestSec"
+                  type="number"
+                  min="0"
+                  max="59"
+                  value="20"
+                  class="w-full bg-slate-900 border border-slate-700 rounded-lg px-1.5 py-1.5 text-center font-mono-tabular font-bold text-white"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-[11px] font-bold uppercase text-amber-400 mb-1">
+                Nb Rounds
+              </label>
+              <input
+                id="inputIntervalRounds"
+                type="number"
+                min="1"
+                max="100"
+                value="8"
+                class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-center font-mono-tabular font-bold text-white"
+              />
+            </div>
+          </div>
+
+          <div class="flex flex-wrap items-center justify-between text-xs text-slate-400 pt-1">
+            <span>Presets :</span>
+            <div class="flex flex-wrap gap-1.5">
+              <button type="button" data-int-preset="20,10,8" class="px-2 py-1 font-bold rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200">Tabata 8x20/10</button>
+              <button type="button" data-int-preset="40,20,8" class="px-2 py-1 font-bold rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200">8x 40s/20s</button>
+              <button type="button" data-int-preset="480,0,1" class="px-2 py-1 font-bold rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200">AMRAP 8'</button>
+              <button type="button" data-int-preset="720,0,1" class="px-2 py-1 font-bold rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200">AMRAP 12'</button>
+              <button type="button" data-int-preset="900,0,1" class="px-2 py-1 font-bold rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200">AMRAP 15'</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================================================================
+         ZONE CENTRALE / DROITE : WORKOUT DU JOUR SUGARWOD
+         =================================================================== -->
+    <section
+      id="wodSection"
+      class="lg:col-span-7 xl:col-span-7 flex flex-col gap-4"
+    >
+      <!-- Barre d'outils WOD : Sélection Date, Piste (Track), Filtres d'affichage rapides -->
+      <div class="bg-box-panel border border-box-border rounded-2xl p-3.5 md:p-4 flex flex-wrap items-center justify-between gap-3 shadow-xl">
+        <div class="flex flex-wrap items-center gap-2.5">
+          <!-- Sélecteur de Date -->
+          <div class="flex items-center bg-slate-950 border border-slate-800 rounded-xl p-1">
+            <button
+              id="btnPrevDay"
+              type="button"
+              title="Jour précédent"
+              class="px-2.5 py-1.5 rounded-lg hover:bg-slate-800 text-slate-300 font-bold text-sm transition"
+            >
+              ◀
+            </button>
+            <input
+              id="inputWodDate"
+              type="date"
+              class="bg-transparent text-white font-bold text-xs md:text-sm px-2 py-1 focus:outline-none"
+            />
+            <button
+              id="btnNextDay"
+              type="button"
+              title="Jour suivant"
+              class="px-2.5 py-1.5 rounded-lg hover:bg-slate-800 text-slate-300 font-bold text-sm transition"
+            >
+              ▶
+            </button>
+          </div>
+
+          <!-- Sélecteur de Track SugarWOD -->
+          <select
+            id="selectSugarTrack"
+            class="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs md:text-sm font-bold text-white focus:outline-none focus:border-red-500"
+          >
+            <option value="all">Toutes les pistes (Tracks)</option>
+          </select>
+
+          <button
+            id="btnRefreshWod"
+            type="button"
+            title="Rafraîchir les WODs depuis SugarWOD"
+            class="px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs font-bold uppercase tracking-wider text-slate-200 transition"
+          >
+            ↻ Sync
+          </button>
+        </div>
+
+        <!-- Filtres rapides des éléments du WOD (Mouvements, RX, Scaled, Notes) -->
+        <div class="flex flex-wrap items-center gap-1.5">
+          <span class="text-[11px] font-bold uppercase tracking-wider text-slate-400 mr-1">
+            Afficher :
+          </span>
+          <button
+            type="button"
+            data-wod-filter="movements"
+            class="wod-filter-pill px-2.5 py-1 rounded-lg text-xs font-extrabold uppercase border transition bg-emerald-500/20 text-emerald-300 border-emerald-500/40"
+          >
+            Mouvements
+          </button>
+          <button
+            type="button"
+            data-wod-filter="rx"
+            class="wod-filter-pill px-2.5 py-1 rounded-lg text-xs font-extrabold uppercase border transition bg-red-500/20 text-red-300 border-red-500/40"
+          >
+            RX
+          </button>
+          <button
+            type="button"
+            data-wod-filter="scaled"
+            class="wod-filter-pill px-2.5 py-1 rounded-lg text-xs font-extrabold uppercase border transition bg-cyan-500/20 text-cyan-300 border-cyan-500/40"
+          >
+            Scaled
+          </button>
+          <button
+            type="button"
+            data-wod-filter="notes"
+            class="wod-filter-pill px-2.5 py-1 rounded-lg text-xs font-extrabold uppercase border transition bg-amber-500/20 text-amber-300 border-amber-500/40"
+          >
+            Notes Coach
+          </button>
+        </div>
+      </div>
+
+      <!-- Bannière d'avertissement éventuelle (ex: clé API invalide -> fallback démo) -->
+      <div
+        id="wodWarningBanner"
+        class="hidden bg-amber-500/15 border border-amber-500/40 text-amber-200 px-4 py-2.5 rounded-xl text-xs font-semibold flex items-center justify-between"
+      >
+        <span id="wodWarningText"></span>
+        <button
+          id="btnDismissWarning"
+          type="button"
+          class="text-amber-300 hover:text-white font-bold ml-4"
+        >
+          ✕
+        </button>
+      </div>
+
+      <!-- Conteneur des Cartes de Workouts SugarWOD (Zoomable) -->
+      <div
+        id="wodCardsContainer"
+        class="wod-zoomable grid grid-cols-1 xl:grid-cols-2 gap-4"
+      >
+        <!-- Injecté dynamiquement par app.js -->
+      </div>
+    </section>
+  </main>
+
+  <!-- =====================================================================
+       TIROIR / MODAL DE PERSONNALISATION TV & CONFIGURATION SUGARWOD API
+       ===================================================================== -->
+  <div
+    id="settingsModal"
+    class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden items-center justify-center p-4"
+  >
+    <div class="bg-box-panel border border-slate-700 rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl p-6 space-y-6">
+      <!-- En-tête Modal -->
+      <div class="flex items-center justify-between border-b border-slate-800 pb-4">
+        <div>
+          <h2 class="font-led text-xl font-black text-white tracking-wider">
+            OPTIONS D'AFFICHAGE TV &amp; SUGARWOD API
+          </h2>
+          <p class="text-xs text-slate-400 mt-0.5">
+            Personnalisez l'ergonomie de l'écran de la box et configurez votre clé API SugarWOD.
+          </p>
+        </div>
+        <button
+          id="btnCloseSettings"
+          type="button"
+          class="w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-lg flex items-center justify-center"
+        >
+          ✕
+        </button>
+      </div>
+
+      <!-- 1. Visibilité des modules sur la TV -->
+      <div class="space-y-3">
+        <h3 class="text-xs font-extrabold uppercase tracking-widest text-red-400">
+          1. Modules &amp; Disposition TV
+        </h3>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <label class="flex items-center justify-between bg-slate-900/90 border border-slate-800 rounded-xl p-3.5 cursor-pointer">
+            <div>
+              <div class="font-bold text-sm text-white">Afficher l'heure actuelle</div>
+              <div class="text-xs text-slate-400">Horloge digitale dans la barre supérieure</div>
+            </div>
+            <input
+              id="toggleShowClock"
+              type="checkbox"
+              checked
+              class="w-5 h-5 accent-red-600 rounded cursor-pointer"
+            />
+          </label>
+
+          <label class="flex items-center justify-between bg-slate-900/90 border border-slate-800 rounded-xl p-3.5 cursor-pointer">
+            <div>
+              <div class="font-bold text-sm text-white">Afficher le chronomètre</div>
+              <div class="text-xs text-slate-400">Si masqué, le WOD occupe 100% de la TV</div>
+            </div>
+            <input
+              id="toggleShowTimer"
+              type="checkbox"
+              checked
+              class="w-5 h-5 accent-red-600 rounded cursor-pointer"
+            />
+          </label>
+        </div>
+      </div>
+
+      <!-- 2. Filtres dynamiques des éléments du WOD -->
+      <div class="space-y-3">
+        <h3 class="text-xs font-extrabold uppercase tracking-widest text-emerald-400">
+          2. Éléments visibles du Workout (SugarWOD)
+        </h3>
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+          <label class="flex items-center gap-2.5 bg-slate-900 border border-slate-800 rounded-xl p-3 cursor-pointer">
+            <input id="chkShowMovements" type="checkbox" checked class="w-4 h-4 accent-emerald-500" />
+            <span class="text-xs font-bold text-slate-200">Mouvements</span>
+          </label>
+          <label class="flex items-center gap-2.5 bg-slate-900 border border-slate-800 rounded-xl p-3 cursor-pointer">
+            <input id="chkShowRx" type="checkbox" checked class="w-4 h-4 accent-red-500" />
+            <span class="text-xs font-bold text-slate-200">Catégorie RX</span>
+          </label>
+          <label class="flex items-center gap-2.5 bg-slate-900 border border-slate-800 rounded-xl p-3 cursor-pointer">
+            <input id="chkShowScaled" type="checkbox" checked class="w-4 h-4 accent-cyan-500" />
+            <span class="text-xs font-bold text-slate-200">Catégorie Scaled</span>
+          </label>
+          <label class="flex items-center gap-2.5 bg-slate-900 border border-slate-800 rounded-xl p-3 cursor-pointer">
+            <input id="chkShowNotes" type="checkbox" checked class="w-4 h-4 accent-amber-500" />
+            <span class="text-xs font-bold text-slate-200">Notes Coach</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- 3. Zoom Global / Taille de Police TV & Volume Audio -->
+      <div class="space-y-3">
+        <h3 class="text-xs font-extrabold uppercase tracking-widest text-amber-400">
+          3. Taille de Police (Zoom TV) &amp; Audio Web Audio API
+        </h3>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-900/90 border border-slate-800 rounded-xl p-4">
+          <div>
+            <div class="flex justify-between text-xs font-bold mb-2">
+              <span class="text-slate-300">Zoom Texte WOD :</span>
+              <span id="zoomSliderValue" class="text-amber-400 font-mono-tabular">100%</span>
+            </div>
+            <input
+              id="sliderZoom"
+              type="range"
+              min="75"
+              max="155"
+              step="5"
+              value="100"
+              class="w-full accent-amber-400 cursor-pointer"
+            />
+            <div class="flex justify-between text-[10px] text-slate-500 mt-1">
+              <span>75% (Compact)</span>
+              <span>100% (Standard)</span>
+              <span>155% (Géant TV)</span>
+            </div>
+          </div>
+
+          <div>
+            <div class="flex justify-between text-xs font-bold mb-2">
+              <span class="text-slate-300">Puissance Bips Chrono :</span>
+              <button
+                id="btnTestSound"
+                type="button"
+                class="text-xs font-extrabold text-emerald-400 hover:underline"
+              >
+                🔊 Tester les bips (440/880 Hz)
+              </button>
+            </div>
+            <input
+              id="sliderVolume"
+              type="range"
+              min="0"
+              max="100"
+              step="5"
+              value="85"
+              class="w-full accent-emerald-400 cursor-pointer"
+            />
+          </div>
+        </div>
+      </div>
+
+      <!-- 4. Configuration Sécurisée Clé API SugarWOD -->
+      <div class="space-y-3">
+        <h3 class="text-xs font-extrabold uppercase tracking-widest text-cyan-400">
+          4. Connexion API SugarWOD (Proxy Backend Sécurisé)
+        </h3>
+        <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-4 space-y-3">
+          <div class="flex items-center justify-between text-xs">
+            <span class="text-slate-400">Statut actuel de la clé sur le serveur :</span>
+            <span id="modalApiKeyStatus" class="font-mono-tabular font-bold text-amber-400">
+              Non configurée (Mode Démo actif)
+            </span>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+            <div class="sm:col-span-2">
+              <label class="block text-[11px] font-bold uppercase text-slate-400 mb-1">
+                Nouvelle Clé API SugarWOD (v2)
+              </label>
+              <input
+                id="inputSugarApiKey"
+                type="password"
+                placeholder="Collez votre clé SugarWOD (Gym Settings > Developer Keys)"
+                class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-400"
+              />
+            </div>
+
+            <div>
+              <label class="block text-[11px] font-bold uppercase text-slate-400 mb-1">
+                Code PIN Admin (si actif)
+              </label>
+              <input
+                id="inputAdminPin"
+                type="password"
+                placeholder="Optionnel"
+                class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-400"
+              />
+            </div>
+          </div>
+
+          <div class="flex flex-wrap items-center justify-between gap-2 pt-2">
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input id="chkForceDemo" type="checkbox" class="w-4 h-4 accent-amber-500" />
+              <span class="text-xs font-semibold text-slate-300">
+                Forcer le Mode Démo (WODs pré-chargés)
+              </span>
+            </label>
+
+            <div class="flex items-center gap-2">
+              <button
+                id="btnSaveApiConfig"
+                type="button"
+                class="px-4 py-2 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-extrabold text-xs uppercase tracking-wider transition"
+              >
+                Enregistrer sur le serveur
+              </button>
+            </div>
+          </div>
+          <p id="apiSaveFeedback" class="text-xs font-semibold hidden"></p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts Modulaires -->
+  <script src="/js/audio.js"></script>
+  <script src="/js/timer.js"></script>
+  <script src="/js/app.js"></script>
+</body>
+</html>
