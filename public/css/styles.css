@@ -197,11 +197,49 @@ body.timer-fullscreen-mode #timerConfigAccordion {
   display: none !important;
 }
 
-/* Fenêtre de défilement dédiée à la zone Workout sur écran TV paysage :
-   Le chronomètre reste 100% fixe à gauche pendant que l'on scrolle les blocs du WOD à droite */
+/* En-tête supérieur 100% fixe en haut de l'écran en toute circonstance */
+#topHeaderBar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 40;
+}
+
+/* Compensation de la hauteur du header fixe */
+body {
+  padding-top: 4.25rem;
+}
+
+/* Sur écran paysage (Smart TV / PC), verrouiller le scroll global de la fenêtre
+   pour que le Header, le Chrono et la barre d'outils WOD ne disparaissent jamais */
 @media (min-width: 1024px) {
+  html,
+  body {
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  #mainGrid {
+    height: calc(100vh - 4.25rem);
+    overflow: hidden;
+  }
+
+  #timerSection {
+    max-height: calc(100vh - 6.25rem);
+    overflow-y: auto;
+  }
+
+  #wodSection {
+    height: calc(100vh - 6.25rem);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
   .wod-scroll-viewport {
-    max-height: calc(100vh - 11.5rem);
+    flex: 1;
+    min-height: 0;
     overflow-y: auto;
     scroll-behavior: smooth;
   }

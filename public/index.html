@@ -41,7 +41,10 @@
   <!-- =====================================================================
        BARRE SUPÉRIEURE TV (Logo, Statut SugarWOD, Contrôles Coach, Horloge)
        ===================================================================== -->
-  <header class="sticky top-0 h-18 px-5 py-2.5 bg-box-panel/95 backdrop-blur border-b border-box-border flex flex-wrap items-center justify-between gap-4 z-30">
+  <header
+    id="topHeaderBar"
+    class="h-18 px-5 py-2.5 bg-box-panel/95 backdrop-blur border-b border-box-border flex flex-wrap items-center justify-between gap-4 z-40"
+  >
     <!-- Gauche : Identité Salle & Statut API SugarWOD -->
     <div class="flex items-center gap-4">
       <div class="flex items-center gap-2.5">
@@ -491,8 +494,11 @@
       id="wodSection"
       class="lg:col-span-7 xl:col-span-7 flex flex-col gap-4"
     >
-      <!-- Barre d'outils WOD : Sélection Date, Piste (Track), Filtres d'affichage (Accessible au Coach) -->
-      <div class="bg-box-panel border border-box-border rounded-2xl p-3.5 md:p-4 flex flex-wrap items-center justify-between gap-3 shadow-xl">
+      <!-- Barre d'outils WOD : Toujours fixe et visible en haut de la zone Workout -->
+      <div
+        id="wodToolbar"
+        class="shrink-0 sticky top-16 lg:static z-20 bg-box-panel border border-box-border rounded-2xl p-3.5 md:p-4 flex flex-wrap items-center justify-between gap-3 shadow-xl"
+      >
         <div class="flex flex-wrap items-center gap-2.5">
           <!-- Sélecteur de Date -->
           <div class="flex items-center bg-slate-950 border border-slate-800 rounded-xl p-1">
