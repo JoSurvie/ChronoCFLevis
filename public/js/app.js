@@ -25,6 +25,7 @@
     showClock: true,
     showTimer: true,
     timerFullscreen: false,
+    wodLayout: 'grid', // 'grid' (2 colonnes) | 'stack' (1 colonne pleine largeur)
     zoomPercent: 100,
     volumePercent: 85,
     muted: false,
@@ -632,6 +633,24 @@
       pill.style.opacity = active ? '1' : '0.38';
     });
 
+    // Mise à jour de l'apparence du bouton "Vue" (Grille vs Empilé pleine largeur)
+    const layoutIcon = document.getElementById('wodLayoutIcon');
+    const layoutLabel = document.getElementById('wodLayoutLabel');
+    const btnToggleWodLayout = document.getElementById('btnToggleWodLayout');
+    if (layoutIcon && layoutLabel && btnToggleWodLayout) {
+      if (uiState.wodLayout === 'stack') {
+        layoutIcon.textContent = '☰';
+        layoutLabel.textContent = 'Vue : Empilée';
+        btnToggleWodLayout.className =
+          'px-3 py-2 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/40 text-xs font-extrabold uppercase tracking-wider text-cyan-300 transition flex items-center gap-1.5';
+      } else {
+        layoutIcon.textContent = '⊞';
+        layoutLabel.textContent = 'Vue : Grille';
+        btnToggleWodLayout.className =
+          'px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs font-bold uppercase tracking-wider text-slate-200 transition flex items-center gap-1.5';
+      }
+    }
+
     renderWorkouts();
     savePrefs();
   }
@@ -865,10 +884,13 @@
 
     const f = uiState.wodFilters;
 
-    container.className =
-      currentWorkouts.length === 1
-        ? 'wod-zoomable grid grid-cols-1 gap-4'
-        : 'wod-zoomable grid grid-cols-1 xl:grid-cols-2 gap-4';
+    // En mode "stack" (Vue : Empilée) ou s'il n'y a qu'un seul WOD :
+    // Chaque bloc est affiché l'un au-dessus de l'autre en utilisant 100% de la largeur disponible
+    // de la zone WOD (qui s'adapte automatiquement selon que le chrono est affiché ou masqué).
+    const isStackView = uiState.wodLayout === 'stack' || currentWorkouts.length === 1;
+    container.className = isStackView
+      ? 'wod-zoomable grid grid-cols-1 gap-4 w-full'
+      : 'wod-zoomable grid grid-cols-1 xl:grid-cols-2 gap-4 w-full';
 
     container.innerHTML = currentWorkouts
       .map((wod, idx) => {
@@ -937,7 +959,7 @@
           : '';
 
         return `
-          <article class="bg-box-panel border border-box-border rounded-2xl p-5 shadow-xl flex flex-col justify-between gap-3.5 hover:border-slate-600 transition">
+          <article class="w-full bg-box-panel border border-box-border rounded-2xl p-5 shadow-xl flex flex-col justify-between gap-3.5 hover:border-slate-600 transition">
             <div class="space-y-3.5">
               <div class="flex flex-wrap items-start justify-between gap-2 border-b border-slate-800 pb-3">
                 <div>
@@ -1003,6 +1025,15 @@
       loadTracks();
       loadWorkouts();
     });
+
+    // Bouton "Vue" : bascule entre Vue Grille (2 colonnes) et Vue Empilée (1 colonne pleine largeur)
+    const btnToggleWodLayout = document.getElementById('btnToggleWodLayout');
+    if (btnToggleWodLayout) {
+      btnToggleWodLayout.addEventListener('click', () => {
+        uiState.wodLayout = uiState.wodLayout === 'stack' ? 'grid' : 'stack';
+        applyUiPreferences();
+      });
+    }
 
     document.getElementById('btnDismissWarning').addEventListener('click', () => {
       document.getElementById('wodWarningBanner').classList.add('hidden');
