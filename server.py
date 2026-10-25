@@ -1,27 +1,44 @@
 #!/usr/bin/env python3
 """
-ChronoCrossfit — Serveur Backend Léger Python (Alternative sans installation à server.js)
-Fournit exactement les mêmes endpoints API REST :
-- GET  /api/config/status
-- POST /api/config/apikey
-- GET  /api/tracks
-- GET  /api/workouts
-Ainsi que le service des fichiers statiques du dossier public/.
+ChronoCrossfit — Serveur Backend Python avec Authentification Session & Bcrypt
+Implémente exactement les mêmes endpoints et la même sécurité que server.js :
+- Compte initial : admin / admin123 (haché en bcrypt dans .auth-store.json)
+- Flag mustChangePassword = True à la première connexion
+- Cookies de session HttpOnly (chronocf.sid)
+- Endpoints Auth : GET /api/auth/session, POST /api/auth/login,
+                   POST /api/auth/change-password, POST /api/auth/logout
+- Endpoints Proxy SugarWOD & Config : GET /api/config/status, POST /api/config/apikey (protégé),
+                                      GET /api/tracks, GET /api/workouts
 """
 
 import json
 import os
 import re
+import secrets
+import time
 import urllib.parse
 import urllib.request
 from datetime import datetime
+from http import cookies
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
+
+import bcrypt
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 PUBLIC_DIR = os.path.join(BASE_DIR, "public")
 ENV_PATH = os.path.join(BASE_DIR, ".env")
 RUNTIME_CONFIG_PATH = os.path.join(BASE_DIR, ".runtime-config.json")
+AUTH_STORE_PATH = os.path.join(BASE_DIR, ".auth-store.json")
 SUGARWOD_BASE_URL = "https://api.sugarwod.com/v2"
+
+DEFAULT_ADMIN_USER = "admin"
+DEFAULT_ADMIN_PASS = "admin123"
+BCRYPT_ROUNDS = 10
+SESSION_COOKIE_NAME = "chronocf.sid"
+SESSION_TTL_SECONDS = 12 * 3600
+
+# Stockage des sessions actives en mémoire : { session_id: { "username": str, "expires_at": float } }
+ACTIVE_SESSIONS = {}
 
 
 def load_dotenv():
@@ -38,6 +55,36 @@ def load_dotenv():
         except Exception:
             pass
     return env_vars
+
+
+def save_auth_store(store_data):
+    with open(AUTH_STORE_PATH, "w", encoding="utf-8") as f:
+        json.dump(store_data, f, indent=2, ensure_ascii=False)
+    return True
+
+
+def load_or_init_auth_store():
+    if os.path.exists(AUTH_STORE_PATH):
+        try:
+            with open(AUTH_STORE_PATH, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            if data.get("username") and data.get("passwordHash"):
+                return data
+        except Exception:
+            pass
+
+    pw_hash = bcrypt.hashpw(
+        DEFAULT_ADMIN_PASS.encode("utf-8"), bcrypt.gensalt(BCRYPT_ROUNDS)
+    ).decode("utf-8")
+    initial_store = {
+        "username": DEFAULT_ADMIN_USER,
+        "passwordHash": pw_hash,
+        "mustChangePassword": True,
+        "sessionSecret": secrets.token_hex(32),
+        "updatedAt": datetime.utcnow().isoformat() + "Z",
+    }
+    save_auth_store(initial_store)
+    return initial_store
 
 
 def load_runtime_config():
@@ -189,52 +236,6 @@ def get_demo_workouts(date_str, track_id="all"):
                 "label": "8 ROUNDS (40s Work / 20s Rest)",
             },
         },
-        {
-            "id": "demo-comp-5",
-            "title": 'COMPÉTITION — "HEAVY METCON"',
-            "date": date_str,
-            "trackId": "comp-track",
-            "trackName": "Compétition / RX+",
-            "scoreType": "Rounds + Reps",
-            "movements": [
-                "AMRAP 16 MINUTES :",
-                "• 3 Rope Climbs (4.5m)",
-                "• 6 Ring Muscle-ups",
-                "• 9 Squat Snatches",
-            ],
-            "rx": "♂ 61 kg (135 lb) / ♀ 43 kg (95 lb) — Legless Rope Climb au 1er passage de chaque tour",
-            "scaled": "♂ 43 kg (95 lb) / ♀ 30 kg (65 lb) — 6 Bar Muscle-ups ou 12 C2B Pull-ups",
-            "notes": "Gérez votre grip entre les montées de corde et les Ring Muscle-ups. Singles rapides sur les Squat Snatches dès la première minute.",
-            "suggestedTimer": {
-                "mode": "INTERVALS",
-                "workSeconds": 960,
-                "restSeconds": 0,
-                "rounds": 1,
-                "label": "AMRAP 16:00",
-            },
-        },
-        {
-            "id": "demo-haltero-6",
-            "title": "HALTÉROPHILIE — SNATCH EMOM",
-            "date": date_str,
-            "trackId": "halterophilie",
-            "trackName": "Haltérophilie & Force",
-            "scoreType": "Load",
-            "movements": [
-                "EMOM 10 MINUTES :",
-                "• Min 1 à 5 : 2 Hang Squat Snatches @ 75%",
-                "• Min 6 à 10 : 1 Squat Snatch @ 82% -> 88%",
-            ],
-            "rx": "Réception en squat complet stabilisé 2 secondes en bas à chaque répétition.",
-            "scaled": "Power Snatch + Overhead Squat contrôlé à charge technique (60-70%).",
-            "notes": "Gardez la barre proche du corps au passage des genoux.",
-            "suggestedTimer": {
-                "mode": "EMOM",
-                "intervalSeconds": 60,
-                "rounds": 10,
-                "label": "EMOM 10:00 (10 x 1:00)",
-            },
-        },
     ]
 
     if track_id and track_id != "all":
@@ -274,7 +275,9 @@ def normalize_sugarwod_item(item, idx=0):
             continue
         if re.match(r"^(notes?|stimulus|coach|objectif)\s*[:\-]", line, re.I):
             section = "notes"
-            cleaned = re.sub(r"^(notes?|stimulus|coach|objectif)\s*[:\-]\s*", "", line, flags=re.I).strip()
+            cleaned = re.sub(
+                r"^(notes?|stimulus|coach|objectif)\s*[:\-]\s*", "", line, flags=re.I
+            ).strip()
             if cleaned:
                 note_lines.append(cleaned)
             continue
@@ -311,16 +314,42 @@ def normalize_sugarwod_item(item, idx=0):
     }
 
 
+# Assurer l'initialisation du store admin au chargement
+load_or_init_auth_store()
+
+
 class ChronoHandler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=PUBLIC_DIR, **kwargs)
 
-    def send_json(self, status_code, payload):
+    def get_session(self):
+        raw_cookie = self.headers.get("Cookie", "")
+        if not raw_cookie:
+            return None, None
+        c = cookies.SimpleCookie()
+        try:
+            c.load(raw_cookie)
+        except Exception:
+            return None, None
+        if SESSION_COOKIE_NAME not in c:
+            return None, None
+        sid = c[SESSION_COOKIE_NAME].value
+        sess = ACTIVE_SESSIONS.get(sid)
+        if not sess:
+            return None, None
+        if sess["expires_at"] < time.time():
+            ACTIVE_SESSIONS.pop(sid, None)
+            return None, None
+        return sid, sess
+
+    def send_json(self, status_code, payload, extra_headers=None):
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         self.send_response(status_code)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
-        self.send_header("Access-Control-Allow-Origin", "*")
+        if extra_headers:
+            for k, v in extra_headers.items():
+                self.send_header(k, v)
         self.end_headers()
         self.wfile.write(body)
 
@@ -329,19 +358,39 @@ class ChronoHandler(SimpleHTTPRequestHandler):
         path = parsed.path
         query = urllib.parse.parse_qs(parsed.query)
 
+        if path == "/api/auth/session":
+            _, sess = self.get_session()
+            if not sess:
+                return self.send_json(
+                    200,
+                    {
+                        "authenticated": False,
+                        "mustChangePassword": False,
+                        "username": None,
+                    },
+                )
+            store = load_or_init_auth_store()
+            return self.send_json(
+                200,
+                {
+                    "authenticated": True,
+                    "username": store["username"],
+                    "mustChangePassword": bool(store.get("mustChangePassword")),
+                },
+            )
+
         if path == "/api/config/status":
             key, source = get_effective_api_key()
             runtime = load_runtime_config()
-            env_vars = load_dotenv()
-            admin_pin = os.environ.get("ADMIN_PIN") or env_vars.get("ADMIN_PIN", "")
+            _, sess = self.get_session()
+            is_auth = bool(sess)
             return self.send_json(
                 200,
                 {
                     "configured": bool(key),
                     "source": source,
-                    "maskedKey": mask_api_key(key),
+                    "maskedKey": mask_api_key(key) if is_auth else None,
                     "forceDemo": bool(runtime.get("forceDemo")),
-                    "pinProtected": bool(admin_pin.strip()),
                 },
             )
 
@@ -440,18 +489,158 @@ class ChronoHandler(SimpleHTTPRequestHandler):
 
     def do_POST(self):
         parsed = urllib.parse.urlparse(self.path)
-        if parsed.path == "/api/config/apikey":
-            length = int(self.headers.get("Content-Length", "0"))
-            raw_body = self.rfile.read(length).decode("utf-8") if length > 0 else "{}"
+        path = parsed.path
+        length = int(self.headers.get("Content-Length", "0"))
+        raw_body = self.rfile.read(length).decode("utf-8") if length > 0 else "{}"
+        try:
             body = json.loads(raw_body or "{}")
+        except Exception:
+            body = {}
 
-            env_vars = load_dotenv()
-            required_pin = (
-                os.environ.get("ADMIN_PIN") or env_vars.get("ADMIN_PIN", "")
-            ).strip()
-            if required_pin and body.get("pin", "") != required_pin:
+        if path == "/api/auth/login":
+            username = str(body.get("username") or "").strip()
+            password = str(body.get("password") or "")
+            store = load_or_init_auth_store()
+
+            if not username or not password or username.lower() != store["username"].lower():
                 return self.send_json(
-                    403, {"success": False, "error": "Code PIN administrateur invalide."}
+                    401,
+                    {"success": False, "error": "Identifiant ou mot de passe incorrect."},
+                )
+
+            valid = bcrypt.checkpw(
+                password.encode("utf-8"), store["passwordHash"].encode("utf-8")
+            )
+            if not valid:
+                return self.send_json(
+                    401,
+                    {"success": False, "error": "Identifiant ou mot de passe incorrect."},
+                )
+
+            sid = secrets.token_urlsafe(32)
+            ACTIVE_SESSIONS[sid] = {
+                "username": store["username"],
+                "expires_at": time.time() + SESSION_TTL_SECONDS,
+            }
+            cookie_header = f"{SESSION_COOKIE_NAME}={sid}; HttpOnly; Path=/; Max-Age={SESSION_TTL_SECONDS}; SameSite=Lax"
+            return self.send_json(
+                200,
+                {
+                    "success": True,
+                    "authenticated": True,
+                    "username": store["username"],
+                    "mustChangePassword": bool(store.get("mustChangePassword")),
+                },
+                extra_headers={"Set-Cookie": cookie_header},
+            )
+
+        if path == "/api/auth/change-password":
+            _, sess = self.get_session()
+            if not sess:
+                return self.send_json(
+                    401,
+                    {
+                        "authenticated": False,
+                        "error": "Authentification administrateur requise.",
+                    },
+                )
+
+            current_pw = str(body.get("currentPassword") or "")
+            new_pw = str(body.get("newPassword") or "").strip()
+            confirm_pw = body.get("confirmPassword")
+            store = load_or_init_auth_store()
+
+            if not current_pw or not new_pw:
+                return self.send_json(
+                    400,
+                    {
+                        "success": False,
+                        "error": "Veuillez renseigner le mot de passe actuel et le nouveau mot de passe.",
+                    },
+                )
+
+            if not bcrypt.checkpw(
+                current_pw.encode("utf-8"), store["passwordHash"].encode("utf-8")
+            ):
+                return self.send_json(
+                    401,
+                    {"success": False, "error": "Le mot de passe actuel est incorrect."},
+                )
+
+            if len(new_pw) < 6:
+                return self.send_json(
+                    400,
+                    {
+                        "success": False,
+                        "error": "Le nouveau mot de passe doit contenir au moins 6 caractères.",
+                    },
+                )
+
+            if confirm_pw is not None and new_pw != str(confirm_pw).strip():
+                return self.send_json(
+                    400,
+                    {
+                        "success": False,
+                        "error": "La confirmation du nouveau mot de passe ne correspond pas.",
+                    },
+                )
+
+            if new_pw == DEFAULT_ADMIN_PASS:
+                return self.send_json(
+                    400,
+                    {
+                        "success": False,
+                        "error": "Vous devez choisir un mot de passe différent du mot de passe temporaire par défaut (admin123).",
+                    },
+                )
+
+            store["passwordHash"] = bcrypt.hashpw(
+                new_pw.encode("utf-8"), bcrypt.gensalt(BCRYPT_ROUNDS)
+            ).decode("utf-8")
+            store["mustChangePassword"] = False
+            store["updatedAt"] = datetime.utcnow().isoformat() + "Z"
+            save_auth_store(store)
+
+            return self.send_json(
+                200,
+                {
+                    "success": True,
+                    "authenticated": True,
+                    "username": store["username"],
+                    "mustChangePassword": False,
+                },
+            )
+
+        if path == "/api/auth/logout":
+            sid, _ = self.get_session()
+            if sid:
+                ACTIVE_SESSIONS.pop(sid, None)
+            clear_cookie = f"{SESSION_COOKIE_NAME}=; HttpOnly; Path=/; Max-Age=0; SameSite=Lax"
+            return self.send_json(
+                200,
+                {"success": True, "authenticated": False},
+                extra_headers={"Set-Cookie": clear_cookie},
+            )
+
+        if path == "/api/config/apikey":
+            _, sess = self.get_session()
+            if not sess:
+                return self.send_json(
+                    401,
+                    {
+                        "authenticated": False,
+                        "error": "Authentification administrateur requise.",
+                    },
+                )
+            store = load_or_init_auth_store()
+            if store.get("mustChangePassword"):
+                return self.send_json(
+                    403,
+                    {
+                        "authenticated": True,
+                        "mustChangePassword": True,
+                        "error": "Vous devez obligatoirement modifier le mot de passe temporaire avant de continuer.",
+                    },
                 )
 
             updates = {}
@@ -482,8 +671,9 @@ if __name__ == "__main__":
     port = int(os.environ.get("PORT") or env_vars.get("PORT") or 3000)
     server = ThreadingHTTPServer(("0.0.0.0", port), ChronoHandler)
     print("======================================================")
-    print(f"🏋️  CHRONOCROSSFIT TV SERVER READY (Python Backend)")
+    print(f"🏋️  CHRONOCROSSFIT TV SERVER READY (Auth + SugarWOD)")
     print(f"📺 URL Locale : http://localhost:{port}")
+    print(f"🔐 Compte initial : admin / admin123")
     print("======================================================")
     try:
         server.serve_forever()

@@ -2,18 +2,111 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
+const bcrypt = require('bcryptjs');
+const session = require('express-session');
 require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const SUGARWOD_BASE_URL = 'https://api.sugarwod.com/v2';
 const RUNTIME_CONFIG_PATH = path.join(__dirname, '.runtime-config.json');
+const AUTH_STORE_PATH = path.join(__dirname, '.auth-store.json');
 
-app.use(cors());
+// Compte par défaut exigé : admin / admin123 avec changement obligatoire à la 1ère connexion
+const DEFAULT_ADMIN_USER = 'admin';
+const DEFAULT_ADMIN_PASS = 'admin123';
+const BCRYPT_ROUNDS = 10;
+
+app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
+
+// --- Gestion du Stockage Sécurisé Administrateur (bcrypt + mustChangePassword) ---
+function loadOrInitAuthStore() {
+  try {
+    if (fs.existsSync(AUTH_STORE_PATH)) {
+      const raw = fs.readFileSync(AUTH_STORE_PATH, 'utf-8');
+      const parsed = JSON.parse(raw);
+      if (parsed && parsed.username && parsed.passwordHash) {
+        return parsed;
+      }
+    }
+  } catch (err) {
+    console.error('Erreur lecture .auth-store.json:', err.message);
+  }
+
+  // Initialisation avec admin / admin123 haché en bcrypt et mustChangePassword = true
+  const initialStore = {
+    username: DEFAULT_ADMIN_USER,
+    passwordHash: bcrypt.hashSync(DEFAULT_ADMIN_PASS, BCRYPT_ROUNDS),
+    mustChangePassword: true,
+    sessionSecret: process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex'),
+    updatedAt: new Date().toISOString()
+  };
+
+  saveAuthStore(initialStore);
+  return initialStore;
+}
+
+function saveAuthStore(storeData) {
+  try {
+    fs.writeFileSync(AUTH_STORE_PATH, JSON.stringify(storeData, null, 2), 'utf-8');
+    return true;
+  } catch (err) {
+    console.error('Erreur sauvegarde .auth-store.json:', err.message);
+    return false;
+  }
+}
+
+const initialAuth = loadOrInitAuthStore();
+
+// Configuration de la session Express (Cookie HttpOnly sécurisé)
+app.use(
+  session({
+    name: 'chronocf.sid',
+    secret: process.env.SESSION_SECRET || initialAuth.sessionSecret || 'chronocf-secret-key',
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      httpOnly: true,
+      sameSite: 'lax',
+      maxAge: 12 * 60 * 60 * 1000 // 12 heures
+    }
+  })
+);
+
 app.use(express.static(path.join(__dirname, 'public')));
 
-// --- Gestion sécurisée de la configuration API (Env + Fichier serveur protégé) ---
+// --- Middlewares d'Authentification ---
+function requireAuthenticatedSession(req, res, next) {
+  if (!req.session || !req.session.authenticated) {
+    return res.status(401).json({
+      authenticated: false,
+      error: 'Authentification administrateur requise.'
+    });
+  }
+  next();
+}
+
+function requireActiveAdmin(req, res, next) {
+  if (!req.session || !req.session.authenticated) {
+    return res.status(401).json({
+      authenticated: false,
+      error: 'Authentification administrateur requise.'
+    });
+  }
+  const store = loadOrInitAuthStore();
+  if (store.mustChangePassword) {
+    return res.status(403).json({
+      authenticated: true,
+      mustChangePassword: true,
+      error: 'Vous devez obligatoirement modifier le mot de passe temporaire avant de continuer.'
+    });
+  }
+  next();
+}
+
+// --- Gestion sécurisée de la configuration API SugarWOD ---
 function loadRuntimeConfig() {
   try {
     if (fs.existsSync(RUNTIME_CONFIG_PATH)) {
@@ -55,8 +148,6 @@ function maskApiKey(key) {
 }
 
 // --- Parser intelligent de description SugarWOD ---
-// Extrait les mouvements, les prescriptions RX / Scaled et les notes du coach
-// afin de permettre un filtrage/masquage granulaire sur l'écran TV
 function parseWorkoutSections(rawDescription = '', rawNotes = '') {
   const lines = String(rawDescription || '').split(/\r?\n/);
   const movements = [];
@@ -75,9 +166,6 @@ function parseWorkoutSections(rawDescription = '', rawNotes = '') {
       continue;
     }
 
-    const lower = line.toLowerCase();
-
-    // Détection d'en-têtes ou de lignes RX
     if (/^(rx\s*\+?\s*[:\-]|rx\s*only|♀|♂|rx\s*\()/i.test(line) || /^rx$/i.test(line)) {
       currentSection = 'rx';
       const cleaned = line.replace(/^rx\s*[:\-]?\s*/i, '').trim();
@@ -85,7 +173,6 @@ function parseWorkoutSections(rawDescription = '', rawNotes = '') {
       continue;
     }
 
-    // Détection d'en-têtes ou de lignes Scaled / Intermédiaire
     if (/^(scaled|scale|sc|intermediate|intermédiaire|fitness|masters|teens)\s*[:\-]?/i.test(line)) {
       currentSection = 'scaled';
       const cleaned = line.replace(/^(scaled|scale|sc)\s*[:\-]?\s*/i, '').trim();
@@ -93,7 +180,6 @@ function parseWorkoutSections(rawDescription = '', rawNotes = '') {
       continue;
     }
 
-    // Détection d'en-têtes de Notes / Stimulus / Time Cap / Coaching
     if (/^(notes?|stimulus|coach|objectif|scaling|conseils?)\s*[:\-]/i.test(line)) {
       currentSection = 'notes';
       const cleaned = line.replace(/^(notes?|stimulus|coach|objectif|scaling|conseils?)\s*[:\-]\s*/i, '').trim();
@@ -101,7 +187,6 @@ function parseWorkoutSections(rawDescription = '', rawNotes = '') {
       continue;
     }
 
-    // Affectation selon la section courante
     if (currentSection === 'rx') {
       rxLines.push(line);
     } else if (currentSection === 'scaled') {
@@ -123,7 +208,6 @@ function parseWorkoutSections(rawDescription = '', rawNotes = '') {
     }
   }
 
-  // Nettoyage des lignes vides en fin de tableau
   while (movements.length > 0 && movements[movements.length - 1] === '') {
     movements.pop();
   }
@@ -136,12 +220,12 @@ function parseWorkoutSections(rawDescription = '', rawNotes = '') {
   };
 }
 
-// Suggestions automatiques de configuration de chronomètre selon le WOD
 function inferTimerPreset(title = '', description = '', scoreType = '') {
   const text = `${title} ${description} ${scoreType}`.toLowerCase();
 
-  // Détection EMOM / E2MOM / E3MOM
-  const emomMatch = text.match(/e(\d*)mom\s*(\d+)?/i) || text.match(/every\s*(\d+)\s*(?:min|minute)s?\s*for\s*(\d+)\s*(?:min|minute)s?/i);
+  const emomMatch =
+    text.match(/e(\d*)mom\s*(\d+)?/i) ||
+    text.match(/every\s*(\d+)\s*(?:min|minute)s?\s*for\s*(\d+)\s*(?:min|minute)s?/i);
   if (emomMatch || text.includes('emom')) {
     let everySec = 60;
     let totalMin = 12;
@@ -162,9 +246,7 @@ function inferTimerPreset(title = '', description = '', scoreType = '') {
     };
   }
 
-  // Détection Tabata / Intervalles Work/Rest
-  const tabataMatch = text.includes('tabata');
-  if (tabataMatch) {
+  if (text.includes('tabata')) {
     return {
       mode: 'INTERVALS',
       workSeconds: 20,
@@ -174,7 +256,6 @@ function inferTimerPreset(title = '', description = '', scoreType = '') {
     };
   }
 
-  // Détection AMRAP
   const amrapMatch = text.match(/amrap\s*(?:in\s*)?(\d+)/i) || text.match(/(\d+)\s*min(?:ute)?s?\s*amrap/i);
   if (amrapMatch || scoreType.toLowerCase().includes('rounds')) {
     const minutes = amrapMatch && amrapMatch[1] ? parseInt(amrapMatch[1], 10) : 15;
@@ -187,7 +268,6 @@ function inferTimerPreset(title = '', description = '', scoreType = '') {
     };
   }
 
-  // Détection For Time + Time Cap
   const capMatch = text.match(/(?:time\s*cap|cap)\s*[:\-]?\s*(\d+)/i);
   const minForTime = capMatch && capMatch[1] ? parseInt(capMatch[1], 10) : 15;
   return {
@@ -198,7 +278,6 @@ function inferTimerPreset(title = '', description = '', scoreType = '') {
   };
 }
 
-// Normalisation d'un item workout issu de l'API SugarWOD v2
 function normalizeSugarWodItem(item, index = 0) {
   const attr = item.attributes || item || {};
   const title = attr.title || attr.name || `Workout #${index + 1}`;
@@ -216,8 +295,6 @@ function normalizeSugarWodItem(item, index = 0) {
     'main';
 
   const parsed = parseWorkoutSections(description, rawNotes);
-
-  // Si SugarWOD fournit des champs rx / scaled dédiés ou si on les a extraits
   const rxText = attr.rx_description || attr.rx || parsed.rx || '';
   const scaledText = attr.scaled_description || attr.scaled || parsed.scaled || '';
   const notesText = parsed.notes || '';
@@ -238,7 +315,7 @@ function normalizeSugarWodItem(item, index = 0) {
   };
 }
 
-// --- Données de démonstration réalistes (Mode Démo / Fallback) ---
+// --- Données de démonstration réalistes ---
 function getDemoTracks() {
   return [
     { id: 'crossfit-main', name: 'WOD CrossFit (Main Track)' },
@@ -257,12 +334,6 @@ function getDemoWorkouts(dateStr, trackId = 'all') {
       trackId: 'crossfit-main',
       trackName: 'WOD CrossFit (Main Track)',
       scoreType: 'Warm-up',
-      rawDescription: `AMRAP 8 Minutes (Qualité) :
-200m Run ou 250m Row
-10 Scapular Pull-ups + 10 Kip Swings
-12 Air Squats avec pause 2s en bas
-8 Push-ups Walkout + Downward Dog
-10 Empty Barbell Thrusters`,
       movements: [
         'AMRAP 8 Minutes (Qualité) :',
         '• 200m Run ou 250m Row',
@@ -289,10 +360,6 @@ function getDemoWorkouts(dateStr, trackId = 'all') {
       trackId: 'crossfit-main',
       trackName: 'WOD CrossFit (Main Track)',
       scoreType: 'Load',
-      rawDescription: `Every 2 Minutes On the Minute x 6 Sets (12 Min) :
-1 Squat Clean + 2 Front Squats + 1 Split Jerk
-
-Construire progressivement vers un complexe lourd du jour (75% à 88% du 1RM Clean & Jerk).`,
       movements: [
         'Every 2:00 x 6 Sets (12 Minutes) :',
         '• 1 Squat Clean',
@@ -320,10 +387,6 @@ Construire progressivement vers un complexe lourd du jour (75% à 88% du 1RM Cle
       trackId: 'crossfit-main',
       trackName: 'WOD CrossFit (Main Track)',
       scoreType: 'For Time',
-      rawDescription: `5 Rounds For Time (Time Cap : 15 Minutes) :
-12 Thrusters
-12 Chest-to-Bar Pull-ups
-24 Double-Unders (Changement de rythme : 10 Burpees Over the Bar aux Rounds 3 & 5)`,
       movements: [
         '5 ROUNDS FOR TIME (Time Cap : 15:00) :',
         '• 12 Thrusters',
@@ -348,10 +411,6 @@ Construire progressivement vers un complexe lourd du jour (75% à 88% du 1RM Cle
       trackId: 'hyrox-engine',
       trackName: 'Conditioning / Engine',
       scoreType: 'Calories / Reps',
-      rawDescription: `8 Rounds (40s Work / 20s Rest) :
-Alterner :
-Rounds impairs : Max Calories Echo Bike / Row
-Rounds pairs : Max Wall Balls`,
       movements: [
         '8 ROUNDS — INTERVALLES :',
         '• 40 secondes WORK / 20 secondes REST',
@@ -369,59 +428,6 @@ Rounds pairs : Max Wall Balls`,
         rounds: 8,
         label: '8 ROUNDS (40s Work / 20s Rest)'
       }
-    },
-    {
-      id: 'demo-comp-5',
-      title: 'COMPÉTITION — "HEAVY METCON"',
-      date: dateStr,
-      trackId: 'comp-track',
-      trackName: 'Compétition / RX+',
-      scoreType: 'Rounds + Reps',
-      rawDescription: `AMRAP 16 Minutes :
-4 Rope Climbs (4.5m)
-8 Ring Muscle-ups
-12 Squat Snatches`,
-      movements: [
-        'AMRAP 16 MINUTES :',
-        '• 3 Rope Climbs (4.5m)',
-        '• 6 Ring Muscle-ups',
-        '• 9 Squat Snatches'
-      ],
-      rx: '♂ 61 kg (135 lb) / ♀ 43 kg (95 lb) — Legless Rope Climb au 1er passage de chaque tour',
-      scaled: '♂ 43 kg (95 lb) / ♀ 30 kg (65 lb) — 6 Bar Muscle-ups ou 12 C2B Pull-ups',
-      notes: 'Gérez votre grip entre les montées de corde et les Ring Muscle-ups. Singles rapides sur les Squat Snatches dès la première minute.',
-      suggestedTimer: {
-        mode: 'INTERVALS',
-        workSeconds: 960,
-        restSeconds: 0,
-        rounds: 1,
-        label: 'AMRAP 16:00'
-      }
-    },
-    {
-      id: 'demo-haltero-6',
-      title: 'HALTÉROPHILIE — SNATCH EMOM',
-      date: dateStr,
-      trackId: 'halterophilie',
-      trackName: 'Haltérophilie & Force',
-      scoreType: 'Load',
-      rawDescription: `EMOM 10 Minutes :
-Minutes 1-5 : 2 Hang Squat Snatches @ 75%
-Minutes 6-10 : 1 Squat Snatch @ 82-88%`,
-      movements: [
-        'EMOM 10 MINUTES :',
-        '• Min 1 à 5 : 2 Hang Squat Snatches @ 75%',
-        '• Min 6 à 10 : 1 Squat Snatch @ 82% -> 88%'
-      ],
-      rx: 'Réception en squat complet stabilisé 2 secondes en bas à chaque répétition.',
-      scaled: 'Power Snatch + Overhead Squat contrôlé à charge technique (60-70%).',
-      notes: 'Gardez la barre proche du corps au passage des genoux.',
-      suggestedTimer: {
-        mode: 'EMOM',
-        intervalSeconds: 60,
-        rounds: 10,
-        label: 'EMOM 10:00 (10 x 1:00)'
-      }
     }
   ];
 
@@ -432,32 +438,153 @@ Minutes 6-10 : 1 Squat Snatch @ 82-88%`,
   return workouts;
 }
 
-// --- ENDPOINTS API ---
+// ============================================================================
+// ENDPOINTS D'AUTHENTIFICATION & SESSION (ADMIN / COACH)
+// ============================================================================
 
-// 1. Statut de configuration de la clé API SugarWOD
-app.get('/api/config/status', (req, res) => {
-  const { key, source } = getEffectiveApiKey();
-  const runtime = loadRuntimeConfig();
-  res.json({
-    configured: Boolean(key),
-    source,
-    maskedKey: maskApiKey(key),
-    forceDemo: Boolean(runtime.forceDemo),
-    pinProtected: Boolean(process.env.ADMIN_PIN && process.env.ADMIN_PIN.trim() !== '')
+// 1. Vérifier l'état de la session courante
+app.get('/api/auth/session', (req, res) => {
+  const isAuth = Boolean(req.session && req.session.authenticated);
+  if (!isAuth) {
+    return res.json({
+      authenticated: false,
+      mustChangePassword: false,
+      username: null
+    });
+  }
+  const store = loadOrInitAuthStore();
+  return res.json({
+    authenticated: true,
+    username: store.username,
+    mustChangePassword: Boolean(store.mustChangePassword)
   });
 });
 
-// 2. Sauvegarde / Mise à jour de la clé API SugarWOD ou du mode Démo
-app.post('/api/config/apikey', (req, res) => {
-  const { apiKey, pin, forceDemo } = req.body || {};
-  const requiredPin = process.env.ADMIN_PIN ? process.env.ADMIN_PIN.trim() : '';
+// 2. Connexion Administrateur (identifiant par défaut : admin / admin123)
+app.post('/api/auth/login', async (req, res) => {
+  const { username, password } = req.body || {};
+  const store = loadOrInitAuthStore();
 
-  if (requiredPin && pin !== requiredPin) {
-    return res.status(403).json({
+  if (
+    !username ||
+    !password ||
+    String(username).trim().toLowerCase() !== String(store.username).toLowerCase()
+  ) {
+    return res.status(401).json({
       success: false,
-      error: 'Code PIN administrateur invalide.'
+      error: 'Identifiant ou mot de passe incorrect.'
     });
   }
+
+  const passwordValid = await bcrypt.compare(String(password), store.passwordHash);
+  if (!passwordValid) {
+    return res.status(401).json({
+      success: false,
+      error: 'Identifiant ou mot de passe incorrect.'
+    });
+  }
+
+  req.session.authenticated = true;
+  req.session.username = store.username;
+  req.session.loginAt = new Date().toISOString();
+
+  return res.json({
+    success: true,
+    authenticated: true,
+    username: store.username,
+    mustChangePassword: Boolean(store.mustChangePassword)
+  });
+});
+
+// 3. Changement du mot de passe (obligatoire à la 1ère connexion ou volontaire ensuite)
+app.post('/api/auth/change-password', requireAuthenticatedSession, async (req, res) => {
+  const { currentPassword, newPassword, confirmPassword } = req.body || {};
+  const store = loadOrInitAuthStore();
+
+  if (!currentPassword || !newPassword) {
+    return res.status(400).json({
+      success: false,
+      error: 'Veuillez renseigner le mot de passe actuel et le nouveau mot de passe.'
+    });
+  }
+
+  const currentValid = await bcrypt.compare(String(currentPassword), store.passwordHash);
+  if (!currentValid) {
+    return res.status(401).json({
+      success: false,
+      error: 'Le mot de passe actuel est incorrect.'
+    });
+  }
+
+  const cleanNew = String(newPassword).trim();
+  if (cleanNew.length < 6) {
+    return res.status(400).json({
+      success: false,
+      error: 'Le nouveau mot de passe doit contenir au moins 6 caractères.'
+    });
+  }
+
+  if (confirmPassword !== undefined && cleanNew !== String(confirmPassword).trim()) {
+    return res.status(400).json({
+      success: false,
+      error: 'La confirmation du nouveau mot de passe ne correspond pas.'
+    });
+  }
+
+  if (cleanNew === DEFAULT_ADMIN_PASS) {
+    return res.status(400).json({
+      success: false,
+      error: 'Vous devez choisir un mot de passe différent du mot de passe temporaire par défaut (admin123).'
+    });
+  }
+
+  const newHash = await bcrypt.hash(cleanNew, BCRYPT_ROUNDS);
+  store.passwordHash = newHash;
+  store.mustChangePassword = false;
+  store.updatedAt = new Date().toISOString();
+  saveAuthStore(store);
+
+  return res.json({
+    success: true,
+    authenticated: true,
+    username: store.username,
+    mustChangePassword: false
+  });
+});
+
+// 4. Déconnexion Administrateur (Reverrouille l'interface TV en mode public)
+app.post('/api/auth/logout', (req, res) => {
+  if (req.session) {
+    req.session.destroy(() => {
+      res.clearCookie('chronocf.sid');
+      return res.json({ success: true, authenticated: false });
+    });
+  } else {
+    return res.json({ success: true, authenticated: false });
+  }
+});
+
+// ============================================================================
+// ENDPOINTS CONFIGURATION & PROXY SUGARWOD
+// ============================================================================
+
+// Statut de configuration de la clé API SugarWOD
+app.get('/api/config/status', (req, res) => {
+  const { key, source } = getEffectiveApiKey();
+  const runtime = loadRuntimeConfig();
+  const isAuth = Boolean(req.session && req.session.authenticated);
+
+  res.json({
+    configured: Boolean(key),
+    source,
+    maskedKey: isAuth ? maskApiKey(key) : null,
+    forceDemo: Boolean(runtime.forceDemo)
+  });
+});
+
+// Sauvegarde / Mise à jour de la clé API SugarWOD (STRICTEMENT PROTÉGÉE PAR SESSION ADMIN)
+app.post('/api/config/apikey', requireActiveAdmin, (req, res) => {
+  const { apiKey, forceDemo } = req.body || {};
 
   const updatePayload = {};
   if (typeof apiKey === 'string') {
@@ -480,7 +607,7 @@ app.post('/api/config/apikey', (req, res) => {
   });
 });
 
-// 3. Endpoint Proxy : Récupération des Tracks SugarWOD
+// Proxy SugarWOD : Tracks
 app.get('/api/tracks', async (req, res) => {
   const { key } = getEffectiveApiKey();
   const runtime = loadRuntimeConfig();
@@ -524,7 +651,6 @@ app.get('/api/tracks', async (req, res) => {
       tracks: tracks.length > 0 ? tracks : getDemoTracks()
     });
   } catch (err) {
-    console.warn('Fallback vers les tracks de démonstration:', err.message);
     return res.json({
       source: 'demo-fallback',
       warning: `Impossible de joindre SugarWOD (${err.message}). Affichage des pistes de démonstration.`,
@@ -533,12 +659,11 @@ app.get('/api/tracks', async (req, res) => {
   }
 });
 
-// 4. Endpoint Proxy : Récupération des Workouts du jour SugarWOD
+// Proxy SugarWOD : Workouts du jour
 app.get('/api/workouts', async (req, res) => {
   const { key } = getEffectiveApiKey();
   const runtime = loadRuntimeConfig();
 
-  // Format de date YYYYMMDD pour SugarWOD
   const now = new Date();
   const defaultDate = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
   const rawDate = String(req.query.date || defaultDate).replace(/[^0-9]/g, '');
@@ -590,7 +715,6 @@ app.get('/api/workouts', async (req, res) => {
       workouts
     });
   } catch (err) {
-    console.error('Erreur proxy SugarWOD /workouts:', err.message);
     return res.json({
       source: 'demo-fallback',
       date: dateInt,
@@ -607,7 +731,8 @@ app.get('*', (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`\n======================================================`);
-  console.log(`🏋️  CHRONOCROSSFIT TV SERVER READY`);
+  console.log(`🏋️  CHRONOCROSSFIT TV SERVER READY (Auth + SugarWOD)`);
   console.log(`📺 URL Locale : http://localhost:${PORT}`);
+  console.log(`🔐 Compte initial : admin / admin123`);
   console.log(`======================================================\n`);
 });

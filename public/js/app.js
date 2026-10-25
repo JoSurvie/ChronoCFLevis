@@ -1,9 +1,23 @@
 /**
  * app.js — Contrôleur Principal Smart TV ChronoCrossfit
- * Relie l'interface TV, le Chronomètre LED, le synthétiseur Web Audio API
- * et le proxy Backend SugarWOD.
+ * Intègre :
+ * 1. Système d'authentification Admin (Session Cookie + Changement de mot de passe forcé à la 1ère connexion)
+ * 2. Verrouillage complet de l'interface en mode Vue TV Publique lorsque non authentifié
+ * 3. Chronomètre LED haute précision & Synthétiseur Web Audio API
+ * 4. Proxy Backend SugarWOD sécurisé
  */
 (function () {
+  // --- État d'authentification ---
+  const authState = {
+    authenticated: false,
+    mustChangePassword: false,
+    username: null
+  };
+
+  function isUnlockedAdmin() {
+    return Boolean(authState.authenticated && !authState.mustChangePassword);
+  }
+
   // --- État de personnalisation de l'interface (persisté dans localStorage) ---
   const STORAGE_KEY = 'chronocrossfit_ui_prefs_v1';
   const defaultPrefs = {
@@ -74,6 +88,224 @@
     }
   });
 
+  // --- Application de l'état de verrouillage Admin / Vue TV Publique ---
+  function applyAuthLockState() {
+    const unlocked = isUnlockedAdmin();
+    document.body.classList.toggle('public-tv-locked', !unlocked);
+
+    const adminUserEl = document.getElementById('settingsAdminUsername');
+    if (adminUserEl && authState.username) {
+      adminUserEl.textContent = authState.username;
+    }
+
+    // Si mustChangePassword est actif, ouvrir immédiatement la modale obligatoire
+    const changePwModal = document.getElementById('changePasswordModal');
+    const loginModal = document.getElementById('loginModal');
+    const settingsModal = document.getElementById('settingsModal');
+
+    if (authState.authenticated && authState.mustChangePassword) {
+      loginModal.classList.add('hidden');
+      loginModal.classList.remove('flex');
+      settingsModal.classList.add('hidden');
+      settingsModal.classList.remove('flex');
+      changePwModal.classList.remove('hidden');
+      changePwModal.classList.add('flex');
+    } else if (!authState.authenticated) {
+      changePwModal.classList.add('hidden');
+      changePwModal.classList.remove('flex');
+      settingsModal.classList.add('hidden');
+      settingsModal.classList.remove('flex');
+    }
+
+    renderWorkouts();
+  }
+
+  async function checkSessionStatus() {
+    try {
+      const res = await fetch('/api/auth/session', { credentials: 'same-origin' });
+      const data = await res.json();
+      authState.authenticated = Boolean(data.authenticated);
+      authState.mustChangePassword = Boolean(data.mustChangePassword);
+      authState.username = data.username || null;
+    } catch (err) {
+      authState.authenticated = false;
+      authState.mustChangePassword = false;
+      authState.username = null;
+    }
+    applyAuthLockState();
+    // Si l'URL contient #admin et qu'on n'est pas encore connecté, proposer la modale de login
+    if (window.location.hash === '#admin' && !authState.authenticated) {
+      openLoginModal();
+    }
+  }
+
+  function openLoginModal() {
+    const loginModal = document.getElementById('loginModal');
+    const errEl = document.getElementById('loginErrorMsg');
+    errEl.classList.add('hidden');
+    loginModal.classList.remove('hidden');
+    loginModal.classList.add('flex');
+    setTimeout(() => {
+      const userField = document.getElementById('inputLoginUsername');
+      if (userField) userField.focus();
+    }, 50);
+  }
+
+  function closeLoginModal() {
+    const loginModal = document.getElementById('loginModal');
+    loginModal.classList.add('hidden');
+    loginModal.classList.remove('flex');
+  }
+
+  function bindAuthControls() {
+    // Bouton discret cadenas & raccourci clavier Alt + L
+    document.getElementById('btnDiscreetAdminLogin').addEventListener('click', openLoginModal);
+    document.getElementById('btnCloseLoginModal').addEventListener('click', closeLoginModal);
+
+    window.addEventListener('keydown', (e) => {
+      if (e.altKey && (e.key === 'l' || e.key === 'L')) {
+        e.preventDefault();
+        if (!isUnlockedAdmin()) {
+          openLoginModal();
+        }
+      }
+    });
+
+    // Soumission du formulaire de Login
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const username = document.getElementById('inputLoginUsername').value.trim();
+      const password = document.getElementById('inputLoginPassword').value;
+      const errEl = document.getElementById('loginErrorMsg');
+
+      errEl.classList.add('hidden');
+
+      try {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify({ username, password })
+        });
+        const data = await res.json();
+
+        if (!res.ok || !data.success) {
+          errEl.textContent = data.error || 'Identifiants invalides.';
+          errEl.classList.remove('hidden');
+          return;
+        }
+
+        document.getElementById('inputLoginPassword').value = '';
+        authState.authenticated = true;
+        authState.username = data.username || username;
+        authState.mustChangePassword = Boolean(data.mustChangePassword);
+
+        closeLoginModal();
+        applyAuthLockState();
+        await refreshApiStatus();
+
+        // Pré-remplir le champ de mot de passe actuel si changement obligatoire à la 1ère connexion
+        if (authState.mustChangePassword) {
+          document.getElementById('inputCurrentPassword').value = password;
+          setTimeout(() => {
+            document.getElementById('inputNewPassword').focus();
+          }, 50);
+        }
+      } catch (err) {
+        errEl.textContent = `Erreur réseau : ${err.message}`;
+        errEl.classList.remove('hidden');
+      }
+    });
+
+    // Soumission du formulaire de changement de mot de passe (obligatoire ou volontaire)
+    document.getElementById('changePasswordForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const currentPassword = document.getElementById('inputCurrentPassword').value;
+      const newPassword = document.getElementById('inputNewPassword').value;
+      const confirmPassword = document.getElementById('inputConfirmPassword').value;
+      const errEl = document.getElementById('changePasswordErrorMsg');
+
+      errEl.classList.add('hidden');
+
+      if (newPassword !== confirmPassword) {
+        errEl.textContent = 'La confirmation du nouveau mot de passe ne correspond pas.';
+        errEl.classList.remove('hidden');
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/auth/change-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify({ currentPassword, newPassword, confirmPassword })
+        });
+        const data = await res.json();
+
+        if (!res.ok || !data.success) {
+          errEl.textContent = data.error || 'Impossible de modifier le mot de passe.';
+          errEl.classList.remove('hidden');
+          return;
+        }
+
+        // Réinitialisation des champs et déverrouillage complet de l'interface Admin
+        document.getElementById('inputCurrentPassword').value = '';
+        document.getElementById('inputNewPassword').value = '';
+        document.getElementById('inputConfirmPassword').value = '';
+
+        authState.mustChangePassword = false;
+        const changePwModal = document.getElementById('changePasswordModal');
+        changePwModal.classList.add('hidden');
+        changePwModal.classList.remove('flex');
+
+        applyAuthLockState();
+        await refreshApiStatus();
+      } catch (err) {
+        errEl.textContent = `Erreur réseau : ${err.message}`;
+        errEl.classList.remove('hidden');
+      }
+    });
+
+    // Bouton d'annulation dans la modale de changement de mot de passe
+    document.getElementById('btnCancelPasswordChange').addEventListener('click', async () => {
+      if (authState.mustChangePassword) {
+        await performLogout();
+      } else {
+        const changePwModal = document.getElementById('changePasswordModal');
+        changePwModal.classList.add('hidden');
+        changePwModal.classList.remove('flex');
+      }
+    });
+
+    // Ouvrir le changement de mot de passe depuis les paramètres Admin
+    document.getElementById('btnOpenPasswordModalFromSettings').addEventListener('click', () => {
+      document.getElementById('settingsModal').classList.add('hidden');
+      document.getElementById('settingsModal').classList.remove('flex');
+      const changePwModal = document.getElementById('changePasswordModal');
+      document.getElementById('changePasswordErrorMsg').classList.add('hidden');
+      changePwModal.classList.remove('hidden');
+      changePwModal.classList.add('flex');
+    });
+
+    // Déconnexion / Verrouillage TV
+    document.getElementById('btnAdminLogout').addEventListener('click', performLogout);
+  }
+
+  async function performLogout() {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' });
+    } catch (e) {
+      // Ignorer
+    }
+    authState.authenticated = false;
+    authState.mustChangePassword = false;
+    authState.username = null;
+    if (window.location.hash === '#admin') {
+      history.replaceState(null, '', window.location.pathname);
+    }
+    applyAuthLockState();
+  }
+
   // --- Rendu Haute Fréquence de l'afficheur LED ---
   function renderTimerState(state) {
     timerDigits.textContent = state.displayMain;
@@ -82,7 +314,6 @@
     timerRoundPill.textContent = `ROUND ${state.currentRound} / ${state.totalRounds}`;
     timerProgressBar.style.width = `${Math.max(0, Math.min(100, state.progressPercent))}%`;
 
-    // Couleurs d'illumination LED selon la phase
     timerDigits.classList.remove(
       'led-glow-ready',
       'led-glow-countdown',
@@ -113,7 +344,6 @@
         'px-3 py-1 rounded-md text-xs md:text-sm font-extrabold uppercase tracking-widest bg-red-500/20 text-red-400 border border-red-500/30';
     }
 
-    // Mise à jour du bouton Start / Pause
     if (state.status === 'RUNNING') {
       startPauseIcon.textContent = '⏸';
       startPauseLabel.textContent = 'PAUSE';
@@ -140,7 +370,7 @@
   function handlePhaseVisualFlash({ phaseKey }) {
     if (!timerDisplayBox) return;
     timerDisplayBox.classList.remove('flash-work', 'flash-rest');
-    void timerDisplayBox.offsetWidth; // Reflow pour relancer l'animation CSS
+    void timerDisplayBox.offsetWidth;
     if (String(phaseKey).includes('REST')) {
       timerDisplayBox.classList.add('flash-rest');
     } else if (phaseKey !== 'COUNTDOWN') {
@@ -148,7 +378,7 @@
     }
   }
 
-  // --- Horloge Temps Réel (Barre supérieure) ---
+  // --- Horloge Temps Réel ---
   function startLiveClock() {
     const clockEl = document.getElementById('liveClockDisplay');
     const updateClock = () => {
@@ -162,7 +392,7 @@
     setInterval(updateClock, 1000);
   }
 
-  // --- Gestion des Modes et Paramètres du Chronomètre ---
+  // --- Contrôles du Chronomètre (Réservés à l'Admin connecté) ---
   function bindTimerControls() {
     const modeTabs = document.querySelectorAll('.timer-mode-tab');
     const panelForTime = document.getElementById('configPanelForTime');
@@ -170,6 +400,7 @@
     const panelIntervals = document.getElementById('configPanelIntervals');
 
     function switchModeUI(targetMode) {
+      if (!isUnlockedAdmin()) return;
       modeTabs.forEach((btn) => {
         const isCurrent = btn.getAttribute('data-timer-mode') === targetMode;
         btn.className = isCurrent
@@ -191,11 +422,16 @@
       });
     });
 
-    // Boutons Start / Pause / Reset
-    btnTimerStartPause.addEventListener('click', () => timer.toggle());
-    document.getElementById('btnTimerReset').addEventListener('click', () => timer.reset());
+    btnTimerStartPause.addEventListener('click', () => {
+      if (!isUnlockedAdmin()) return;
+      timer.toggle();
+    });
 
-    // Bouton Mute Audio
+    document.getElementById('btnTimerReset').addEventListener('click', () => {
+      if (!isUnlockedAdmin()) return;
+      timer.reset();
+    });
+
     const btnMute = document.getElementById('btnMuteAudio');
     function updateMuteButton() {
       btnMute.textContent = uiState.muted ? '🔇' : '🔊';
@@ -203,18 +439,19 @@
     }
     updateMuteButton();
     btnMute.addEventListener('click', () => {
+      if (!isUnlockedAdmin()) return;
       uiState.muted = !uiState.muted;
       soundEngine.setMuted(uiState.muted);
       updateMuteButton();
       savePrefs();
     });
 
-    // Direction For Time (Count Up / Count Down)
     let forTimeDirection = 'UP';
     const btnDirUp = document.getElementById('btnDirUp');
     const btnDirDown = document.getElementById('btnDirDown');
 
     function setDirectionUI(dir) {
+      if (!isUnlockedAdmin()) return;
       forTimeDirection = dir;
       btnDirUp.className =
         dir === 'UP'
@@ -230,7 +467,6 @@
     btnDirUp.addEventListener('click', () => setDirectionUI('UP'));
     btnDirDown.addEventListener('click', () => setDirectionUI('DOWN'));
 
-    // Lecture des champs de configuration vers le moteur de chrono
     function syncTimerConfigFromInputs() {
       const ftMin = parseInt(document.getElementById('inputForTimeMin').value || '0', 10);
       const ftSec = parseInt(document.getElementById('inputForTimeSec').value || '0', 10);
@@ -287,9 +523,9 @@
       }
     });
 
-    // Presets rapides For Time
     document.querySelectorAll('[data-ft-preset]').forEach((btn) => {
       btn.addEventListener('click', () => {
+        if (!isUnlockedAdmin()) return;
         const totalSec = parseInt(btn.getAttribute('data-ft-preset'), 10);
         document.getElementById('inputForTimeMin').value = Math.floor(totalSec / 60);
         document.getElementById('inputForTimeSec').value = totalSec % 60;
@@ -297,9 +533,9 @@
       });
     });
 
-    // Presets rapides EMOM
     document.querySelectorAll('[data-emom-preset]').forEach((btn) => {
       btn.addEventListener('click', () => {
+        if (!isUnlockedAdmin()) return;
         const [everySec, rounds] = btn.getAttribute('data-emom-preset').split(',').map(Number);
         document.getElementById('selectEmomEvery').value = String(everySec);
         document.getElementById('inputEmomRounds').value = String(rounds);
@@ -307,9 +543,9 @@
       });
     });
 
-    // Presets rapides Intervalles / AMRAP
     document.querySelectorAll('[data-int-preset]').forEach((btn) => {
       btn.addEventListener('click', () => {
+        if (!isUnlockedAdmin()) return;
         const [workSec, restSec, rounds] = btn
           .getAttribute('data-int-preset')
           .split(',')
@@ -323,9 +559,8 @@
       });
     });
 
-    // Fonction exposée pour charger directement la configuration de chrono d'une carte WOD
     window.applyWorkoutTimerPreset = function (preset) {
-      if (!preset) return;
+      if (!preset || !isUnlockedAdmin()) return;
       if (!uiState.showTimer) {
         uiState.showTimer = true;
         applyUiPreferences();
@@ -358,18 +593,15 @@
       }
     };
 
-    // Initialisation de l'affichage du chrono
     timer.emitState();
   }
 
-  // --- Personnalisation TV : Visibilité Heure, Visibilité Chrono, Plein Écran, Zoom & Filtres WOD ---
+  // --- Personnalisation TV ---
   function applyUiPreferences() {
-    // 1. Afficher / Masquer l'heure actuelle
     const clockContainer = document.getElementById('liveClockContainer');
     clockContainer.classList.toggle('hidden', !uiState.showClock);
     document.getElementById('toggleShowClock').checked = uiState.showClock;
 
-    // 2. Afficher / Masquer le chronomètre
     const timerSection = document.getElementById('timerSection');
     const wodSection = document.getElementById('wodSection');
     const btnQuickToggleTimer = document.getElementById('btnQuickToggleTimer');
@@ -381,16 +613,15 @@
       wodSection.classList.remove('lg:col-span-7', 'xl:col-span-7');
       wodSection.classList.add('lg:col-span-12', 'xl:col-span-12');
       btnQuickToggleTimer.className =
-        'px-3 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-xs font-bold uppercase tracking-wider text-slate-400 border border-slate-800 transition flex items-center gap-1.5';
+        'admin-only-control px-3 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-xs font-bold uppercase tracking-wider text-slate-400 border border-slate-800 transition flex items-center gap-1.5';
     } else {
       timerSection.classList.remove('hidden');
       wodSection.classList.add('lg:col-span-7', 'xl:col-span-7');
       wodSection.classList.remove('lg:col-span-12', 'xl:col-span-12');
       btnQuickToggleTimer.className =
-        'px-3 py-2 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-xs font-bold uppercase tracking-wider text-emerald-300 border border-emerald-500/40 transition flex items-center gap-1.5';
+        'admin-only-control px-3 py-2 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-xs font-bold uppercase tracking-wider text-emerald-300 border border-emerald-500/40 transition flex items-center gap-1.5';
     }
 
-    // 3. Mode Plein Écran Géant Chronomètre
     document.body.classList.toggle('timer-fullscreen-mode', Boolean(uiState.timerFullscreen));
     const fsLabel = document.getElementById('fullscreenTimerLabel');
     const btnExpandCard = document.getElementById('btnTimerExpandCard');
@@ -402,14 +633,12 @@
       btnExpandCard.textContent = '⛶ GÉANT';
     }
 
-    // 4. Zoom Global (75% -> 155%)
     const zoomScale = (uiState.zoomPercent || 100) / 100;
     document.documentElement.style.setProperty('--ui-zoom', String(zoomScale));
     document.getElementById('zoomLabelQuick').textContent = `${uiState.zoomPercent}%`;
     document.getElementById('zoomSliderValue').textContent = `${uiState.zoomPercent}%`;
     document.getElementById('sliderZoom').value = String(uiState.zoomPercent);
 
-    // 5. Filtres des éléments du WOD (Mouvements, RX, Scaled, Notes)
     const f = uiState.wodFilters;
     document.getElementById('chkShowMovements').checked = f.movements;
     document.getElementById('chkShowRx').checked = f.rx;
@@ -427,9 +656,12 @@
   }
 
   function bindCustomizationControls() {
-    // Ouverture / Fermeture Modal Options
     const modal = document.getElementById('settingsModal');
     const openModal = () => {
+      if (!isUnlockedAdmin()) {
+        openLoginModal();
+        return;
+      }
       modal.classList.remove('hidden');
       modal.classList.add('flex');
       refreshApiStatus();
@@ -446,19 +678,21 @@
       if (e.target === modal) closeModal();
     });
 
-    // Toggles Heure et Chrono
     document.getElementById('toggleShowClock').addEventListener('change', (e) => {
+      if (!isUnlockedAdmin()) return;
       uiState.showClock = e.target.checked;
       applyUiPreferences();
     });
 
     document.getElementById('toggleShowTimer').addEventListener('change', (e) => {
+      if (!isUnlockedAdmin()) return;
       uiState.showTimer = e.target.checked;
       if (!uiState.showTimer) uiState.timerFullscreen = false;
       applyUiPreferences();
     });
 
     document.getElementById('btnQuickToggleTimer').addEventListener('click', () => {
+      if (!isUnlockedAdmin()) return;
       if (uiState.timerFullscreen) {
         uiState.timerFullscreen = false;
       } else {
@@ -467,12 +701,11 @@
       applyUiPreferences();
     });
 
-    // Plein écran dédié au chronomètre
     const toggleTimerFullscreen = () => {
+      if (!isUnlockedAdmin()) return;
       uiState.timerFullscreen = !uiState.timerFullscreen;
       if (uiState.timerFullscreen) {
         uiState.showTimer = true;
-        // Demande optionnelle du plein écran natif navigateur TV si supporté
         if (document.documentElement.requestFullscreen && !document.fullscreenElement) {
           document.documentElement.requestFullscreen().catch(() => {});
         }
@@ -483,8 +716,8 @@
     document.getElementById('btnFullscreenTimer').addEventListener('click', toggleTimerFullscreen);
     document.getElementById('btnTimerExpandCard').addEventListener('click', toggleTimerFullscreen);
 
-    // Contrôles de Zoom In / Zoom Out
     const updateZoom = (newZoom) => {
+      if (!isUnlockedAdmin()) return;
       uiState.zoomPercent = Math.max(75, Math.min(155, Math.round(newZoom / 5) * 5));
       applyUiPreferences();
     };
@@ -499,15 +732,16 @@
       updateZoom(parseInt(e.target.value, 10));
     });
 
-    // Volume & Test Audio
     document.getElementById('sliderVolume').value = String(uiState.volumePercent);
     document.getElementById('sliderVolume').addEventListener('input', (e) => {
+      if (!isUnlockedAdmin()) return;
       uiState.volumePercent = parseInt(e.target.value, 10);
       soundEngine.setVolume(uiState.volumePercent / 100);
       savePrefs();
     });
 
     document.getElementById('btnTestSound').addEventListener('click', () => {
+      if (!isUnlockedAdmin()) return;
       soundEngine.setMuted(false);
       uiState.muted = false;
       document.getElementById('btnMuteAudio').textContent = '🔊';
@@ -515,9 +749,9 @@
       setTimeout(() => soundEngine.beepGo(), 320);
     });
 
-    // Filtres des éléments du WOD (Pills + Checkboxes)
     document.querySelectorAll('.wod-filter-pill').forEach((pill) => {
       pill.addEventListener('click', () => {
+        if (!isUnlockedAdmin()) return;
         const key = pill.getAttribute('data-wod-filter');
         uiState.wodFilters[key] = !uiState.wodFilters[key];
         applyUiPreferences();
@@ -533,6 +767,7 @@
 
     Object.entries(filterCheckboxMap).forEach(([chkId, filterKey]) => {
       document.getElementById(chkId).addEventListener('change', (e) => {
+        if (!isUnlockedAdmin()) return;
         uiState.wodFilters[filterKey] = e.target.checked;
         applyUiPreferences();
       });
@@ -549,7 +784,7 @@
 
   async function refreshApiStatus() {
     try {
-      const res = await fetch('/api/config/status');
+      const res = await fetch('/api/config/status', { credentials: 'same-origin' });
       const data = await res.json();
       const dot = document.getElementById('apiStatusDot');
       const text = document.getElementById('apiStatusText');
@@ -561,12 +796,12 @@
       if (data.configured && !data.forceDemo) {
         dot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]';
         text.textContent = 'SugarWOD : Connecté';
-        modalStatus.textContent = `Clé active (${data.maskedKey}) via ${data.source === 'env' ? '.env' : 'Serveur'}`;
+        modalStatus.textContent = `Clé active (${data.maskedKey || 'Protégée'}) via ${data.source === 'env' ? '.env' : 'Serveur'}`;
         modalStatus.className = 'font-mono-tabular font-bold text-emerald-400';
       } else if (data.configured && data.forceDemo) {
         dot.className = 'w-2.5 h-2.5 rounded-full bg-amber-400';
         text.textContent = 'SugarWOD : Démo Forcée';
-        modalStatus.textContent = `Clé enregistrée (${data.maskedKey}) — Mode Démo forcé`;
+        modalStatus.textContent = `Clé enregistrée (${data.maskedKey || 'Protégée'}) — Mode Démo forcé`;
         modalStatus.className = 'font-mono-tabular font-bold text-amber-400';
       } else {
         dot.className = 'w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse';
@@ -581,7 +816,7 @@
 
   async function loadTracks() {
     try {
-      const res = await fetch('/api/tracks');
+      const res = await fetch('/api/tracks', { credentials: 'same-origin' });
       const data = await res.json();
       const select = document.getElementById('selectSugarTrack');
       const currentVal = select.value || 'all';
@@ -611,7 +846,8 @@
 
     try {
       const res = await fetch(
-        `/api/workouts?date=${encodeURIComponent(compactDate)}&track_id=${encodeURIComponent(trackId)}`
+        `/api/workouts?date=${encodeURIComponent(compactDate)}&track_id=${encodeURIComponent(trackId)}`,
+        { credentials: 'same-origin' }
       );
       const data = await res.json();
 
@@ -656,7 +892,8 @@
     }
 
     const f = uiState.wodFilters;
-    // Si 1 seul WOD est affiché, il prend toute la largeur disponible
+    const unlocked = isUnlockedAdmin();
+
     container.className =
       currentWorkouts.length === 1
         ? 'wod-zoomable grid grid-cols-1 gap-4'
@@ -715,23 +952,24 @@
         `
             : '';
 
-        const presetBtnHtml = wod.suggestedTimer
-          ? `
+        // Le bouton de chargement de chrono est masqué en vue TV publique verrouillée
+        const presetBtnHtml =
+          unlocked && wod.suggestedTimer
+            ? `
           <button
             type="button"
             data-load-wod-timer="${idx}"
             title="Charger automatiquement ce format dans le chronomètre"
-            class="px-3 py-1.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 text-xs font-extrabold uppercase tracking-wider transition flex items-center gap-1.5 shrink-0"
+            class="admin-only-control px-3 py-1.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 text-xs font-extrabold uppercase tracking-wider transition flex items-center gap-1.5 shrink-0"
           >
             <span>⏱️ ${escapeHtml(wod.suggestedTimer.label || 'Charger Chrono')}</span>
           </button>
         `
-          : '';
+            : '';
 
         return `
           <article class="bg-box-panel border border-box-border rounded-2xl p-5 shadow-xl flex flex-col justify-between gap-3.5 hover:border-slate-600 transition">
             <div class="space-y-3.5">
-              <!-- En-tête de la carte WOD -->
               <div class="flex flex-wrap items-start justify-between gap-2 border-b border-slate-800 pb-3">
                 <div>
                   <div class="flex items-center gap-2 mb-1">
@@ -759,7 +997,6 @@
       })
       .join('');
 
-    // Liaison des boutons "Charger Chrono" sur chaque carte WOD
     container.querySelectorAll('[data-load-wod-timer]').forEach((btn) => {
       btn.addEventListener('click', () => {
         const idx = parseInt(btn.getAttribute('data-load-wod-timer'), 10);
@@ -777,6 +1014,7 @@
     dateInput.value = selectedDateStr;
 
     const shiftDate = (deltaDays) => {
+      if (!isUnlockedAdmin()) return;
       const parts = (dateInput.value || formatDateInput(new Date())).split('-').map(Number);
       const d = new Date(parts[0], parts[1] - 1, parts[2]);
       d.setDate(d.getDate() + deltaDays);
@@ -786,14 +1024,19 @@
     };
 
     dateInput.addEventListener('change', (e) => {
+      if (!isUnlockedAdmin()) return;
       selectedDateStr = e.target.value;
       loadWorkouts();
     });
 
     document.getElementById('btnPrevDay').addEventListener('click', () => shiftDate(-1));
     document.getElementById('btnNextDay').addEventListener('click', () => shiftDate(1));
-    document.getElementById('selectSugarTrack').addEventListener('change', () => loadWorkouts());
+    document.getElementById('selectSugarTrack').addEventListener('change', () => {
+      if (!isUnlockedAdmin()) return;
+      loadWorkouts();
+    });
     document.getElementById('btnRefreshWod').addEventListener('click', () => {
+      if (!isUnlockedAdmin()) return;
       loadTracks();
       loadWorkouts();
     });
@@ -802,16 +1045,15 @@
       document.getElementById('wodWarningBanner').classList.add('hidden');
     });
 
-    // Enregistrement de la clé API SugarWOD sur le backend
+    // Enregistrement de la clé API SugarWOD (protégé par session Admin)
     document.getElementById('btnSaveApiConfig').addEventListener('click', async () => {
+      if (!isUnlockedAdmin()) return;
       const apiKeyInput = document.getElementById('inputSugarApiKey');
-      const pinInput = document.getElementById('inputAdminPin');
       const chkForceDemo = document.getElementById('chkForceDemo');
       const feedback = document.getElementById('apiSaveFeedback');
 
       const payload = {
-        forceDemo: chkForceDemo.checked,
-        pin: pinInput.value
+        forceDemo: chkForceDemo.checked
       };
       if (apiKeyInput.value.trim() !== '') {
         payload.apiKey = apiKeyInput.value.trim();
@@ -821,6 +1063,7 @@
         const res = await fetch('/api/config/apikey', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
           body: JSON.stringify(payload)
         });
         const data = await res.json();
@@ -833,7 +1076,7 @@
         }
 
         apiKeyInput.value = '';
-        feedback.textContent = 'Configuration enregistrée avec succès sur le serveur !';
+        feedback.textContent = 'Configuration SugarWOD enregistrée en toute sécurité sur le serveur !';
         feedback.className = 'text-xs font-semibold text-emerald-400';
 
         await refreshApiStatus();
@@ -850,11 +1093,13 @@
   // --- Démarrage global ---
   document.addEventListener('DOMContentLoaded', async () => {
     startLiveClock();
+    bindAuthControls();
     bindTimerControls();
     bindCustomizationControls();
     bindSugarWodControls();
     applyUiPreferences();
 
+    await checkSessionStatus();
     await refreshApiStatus();
     await loadTracks();
     await loadWorkouts();

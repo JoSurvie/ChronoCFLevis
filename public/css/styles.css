@@ -29,6 +29,18 @@ body {
   overflow-x: hidden;
 }
 
+/* =========================================================================
+   MODE VUE TV PUBLIQUE VERROUILLÉE (Par défaut tant que non connecté)
+   Masque TOUS les boutons et panneaux de paramétrage pour les athlètes
+   ========================================================================= */
+body.public-tv-locked .admin-only-control {
+  display: none !important;
+}
+
+body:not(.public-tv-locked) .public-only-control {
+  display: none !important;
+}
+
 /* Typographie Digitale type Afficheur LED de Compétition */
 .font-led {
   font-family: 'Orbitron', 'JetBrains Mono', monospace;
@@ -85,6 +97,11 @@ body {
   box-shadow:
     inset 0 0 36px rgba(0, 0, 0, 0.9),
     0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+/* En vue TV publique verrouillée, l'afficheur LED prend toute la hauteur de sa carte */
+body.public-tv-locked #timerDisplayBox {
+  min-height: 340px;
 }
 
 /* Flash visuel plein cadre lors des changements d'intervalles EMOM / GO! */

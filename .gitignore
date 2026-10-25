@@ -1,6 +1,7 @@
 node_modules/
 .env
 .runtime-config.json
+.auth-store.json
 .DS_Store
 __pycache__/
 *.pyc
