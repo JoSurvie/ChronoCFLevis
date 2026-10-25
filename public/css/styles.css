@@ -99,11 +99,6 @@ body:not(.public-tv-locked) .public-only-control {
     0 0 0 1px rgba(255, 255, 255, 0.08);
 }
 
-/* En vue TV publique verrouillée, l'afficheur LED prend toute la hauteur de sa carte */
-body.public-tv-locked #timerDisplayBox {
-  min-height: 340px;
-}
-
 /* Flash visuel plein cadre lors des changements d'intervalles EMOM / GO! */
 @keyframes pulse-flash-green {
   0% {

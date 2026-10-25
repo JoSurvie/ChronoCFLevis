@@ -2,7 +2,8 @@
  * app.js — Contrôleur Principal Smart TV ChronoCrossfit
  * Intègre :
  * 1. Système d'authentification Admin (Session Cookie + Changement de mot de passe forcé à la 1ère connexion)
- * 2. Verrouillage complet de l'interface en mode Vue TV Publique lorsque non authentifié
+ * 2. Masquage exclusif du bouton "Options & API" lorsque l'administrateur n'est pas connecté
+ *    (toutes les fonctionnalités Coach : chrono, presets, filtres WOD, zoom, plein écran restent accessibles)
  * 3. Chronomètre LED haute précision & Synthétiseur Web Audio API
  * 4. Proxy Backend SugarWOD sécurisé
  */
@@ -88,9 +89,11 @@
     }
   });
 
-  // --- Application de l'état de verrouillage Admin / Vue TV Publique ---
+  // --- Application de l'état d'affichage du bouton "Options & API" ---
   function applyAuthLockState() {
     const unlocked = isUnlockedAdmin();
+    // La classe public-tv-locked masque uniquement les éléments .admin-only-control
+    // (c'est-à-dire le bouton "⚙️ Options & API" et le bouton "🔒 Déconnexion")
     document.body.classList.toggle('public-tv-locked', !unlocked);
 
     const adminUserEl = document.getElementById('settingsAdminUsername');
@@ -98,7 +101,6 @@
       adminUserEl.textContent = authState.username;
     }
 
-    // Si mustChangePassword est actif, ouvrir immédiatement la modale obligatoire
     const changePwModal = document.getElementById('changePasswordModal');
     const loginModal = document.getElementById('loginModal');
     const settingsModal = document.getElementById('settingsModal');
@@ -116,8 +118,6 @@
       settingsModal.classList.add('hidden');
       settingsModal.classList.remove('flex');
     }
-
-    renderWorkouts();
   }
 
   async function checkSessionStatus() {
@@ -133,7 +133,6 @@
       authState.username = null;
     }
     applyAuthLockState();
-    // Si l'URL contient #admin et qu'on n'est pas encore connecté, proposer la modale de login
     if (window.location.hash === '#admin' && !authState.authenticated) {
       openLoginModal();
     }
@@ -204,7 +203,6 @@
         applyAuthLockState();
         await refreshApiStatus();
 
-        // Pré-remplir le champ de mot de passe actuel si changement obligatoire à la 1ère connexion
         if (authState.mustChangePassword) {
           document.getElementById('inputCurrentPassword').value = password;
           setTimeout(() => {
@@ -217,7 +215,7 @@
       }
     });
 
-    // Soumission du formulaire de changement de mot de passe (obligatoire ou volontaire)
+    // Soumission du formulaire de changement de mot de passe (obligatoire à la 1ère connexion)
     document.getElementById('changePasswordForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       const currentPassword = document.getElementById('inputCurrentPassword').value;
@@ -248,7 +246,6 @@
           return;
         }
 
-        // Réinitialisation des champs et déverrouillage complet de l'interface Admin
         document.getElementById('inputCurrentPassword').value = '';
         document.getElementById('inputNewPassword').value = '';
         document.getElementById('inputConfirmPassword').value = '';
@@ -266,7 +263,6 @@
       }
     });
 
-    // Bouton d'annulation dans la modale de changement de mot de passe
     document.getElementById('btnCancelPasswordChange').addEventListener('click', async () => {
       if (authState.mustChangePassword) {
         await performLogout();
@@ -277,7 +273,6 @@
       }
     });
 
-    // Ouvrir le changement de mot de passe depuis les paramètres Admin
     document.getElementById('btnOpenPasswordModalFromSettings').addEventListener('click', () => {
       document.getElementById('settingsModal').classList.add('hidden');
       document.getElementById('settingsModal').classList.remove('flex');
@@ -287,7 +282,6 @@
       changePwModal.classList.add('flex');
     });
 
-    // Déconnexion / Verrouillage TV
     document.getElementById('btnAdminLogout').addEventListener('click', performLogout);
   }
 
@@ -392,7 +386,7 @@
     setInterval(updateClock, 1000);
   }
 
-  // --- Contrôles du Chronomètre (Réservés à l'Admin connecté) ---
+  // --- Contrôles du Chronomètre (Toujours accessibles au Coach) ---
   function bindTimerControls() {
     const modeTabs = document.querySelectorAll('.timer-mode-tab');
     const panelForTime = document.getElementById('configPanelForTime');
@@ -400,7 +394,6 @@
     const panelIntervals = document.getElementById('configPanelIntervals');
 
     function switchModeUI(targetMode) {
-      if (!isUnlockedAdmin()) return;
       modeTabs.forEach((btn) => {
         const isCurrent = btn.getAttribute('data-timer-mode') === targetMode;
         btn.className = isCurrent
@@ -422,15 +415,8 @@
       });
     });
 
-    btnTimerStartPause.addEventListener('click', () => {
-      if (!isUnlockedAdmin()) return;
-      timer.toggle();
-    });
-
-    document.getElementById('btnTimerReset').addEventListener('click', () => {
-      if (!isUnlockedAdmin()) return;
-      timer.reset();
-    });
+    btnTimerStartPause.addEventListener('click', () => timer.toggle());
+    document.getElementById('btnTimerReset').addEventListener('click', () => timer.reset());
 
     const btnMute = document.getElementById('btnMuteAudio');
     function updateMuteButton() {
@@ -439,7 +425,6 @@
     }
     updateMuteButton();
     btnMute.addEventListener('click', () => {
-      if (!isUnlockedAdmin()) return;
       uiState.muted = !uiState.muted;
       soundEngine.setMuted(uiState.muted);
       updateMuteButton();
@@ -451,7 +436,6 @@
     const btnDirDown = document.getElementById('btnDirDown');
 
     function setDirectionUI(dir) {
-      if (!isUnlockedAdmin()) return;
       forTimeDirection = dir;
       btnDirUp.className =
         dir === 'UP'
@@ -525,7 +509,6 @@
 
     document.querySelectorAll('[data-ft-preset]').forEach((btn) => {
       btn.addEventListener('click', () => {
-        if (!isUnlockedAdmin()) return;
         const totalSec = parseInt(btn.getAttribute('data-ft-preset'), 10);
         document.getElementById('inputForTimeMin').value = Math.floor(totalSec / 60);
         document.getElementById('inputForTimeSec').value = totalSec % 60;
@@ -535,7 +518,6 @@
 
     document.querySelectorAll('[data-emom-preset]').forEach((btn) => {
       btn.addEventListener('click', () => {
-        if (!isUnlockedAdmin()) return;
         const [everySec, rounds] = btn.getAttribute('data-emom-preset').split(',').map(Number);
         document.getElementById('selectEmomEvery').value = String(everySec);
         document.getElementById('inputEmomRounds').value = String(rounds);
@@ -545,7 +527,6 @@
 
     document.querySelectorAll('[data-int-preset]').forEach((btn) => {
       btn.addEventListener('click', () => {
-        if (!isUnlockedAdmin()) return;
         const [workSec, restSec, rounds] = btn
           .getAttribute('data-int-preset')
           .split(',')
@@ -560,7 +541,7 @@
     });
 
     window.applyWorkoutTimerPreset = function (preset) {
-      if (!preset || !isUnlockedAdmin()) return;
+      if (!preset) return;
       if (!uiState.showTimer) {
         uiState.showTimer = true;
         applyUiPreferences();
@@ -613,13 +594,13 @@
       wodSection.classList.remove('lg:col-span-7', 'xl:col-span-7');
       wodSection.classList.add('lg:col-span-12', 'xl:col-span-12');
       btnQuickToggleTimer.className =
-        'admin-only-control px-3 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-xs font-bold uppercase tracking-wider text-slate-400 border border-slate-800 transition flex items-center gap-1.5';
+        'px-3 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-xs font-bold uppercase tracking-wider text-slate-400 border border-slate-800 transition flex items-center gap-1.5';
     } else {
       timerSection.classList.remove('hidden');
       wodSection.classList.add('lg:col-span-7', 'xl:col-span-7');
       wodSection.classList.remove('lg:col-span-12', 'xl:col-span-12');
       btnQuickToggleTimer.className =
-        'admin-only-control px-3 py-2 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-xs font-bold uppercase tracking-wider text-emerald-300 border border-emerald-500/40 transition flex items-center gap-1.5';
+        'px-3 py-2 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-xs font-bold uppercase tracking-wider text-emerald-300 border border-emerald-500/40 transition flex items-center gap-1.5';
     }
 
     document.body.classList.toggle('timer-fullscreen-mode', Boolean(uiState.timerFullscreen));
@@ -658,6 +639,7 @@
   function bindCustomizationControls() {
     const modal = document.getElementById('settingsModal');
     const openModal = () => {
+      // Seul le panneau "Options & API" exige que l'Admin soit connecté
       if (!isUnlockedAdmin()) {
         openLoginModal();
         return;
@@ -672,27 +654,23 @@
     };
 
     document.getElementById('btnOpenSettings').addEventListener('click', openModal);
-    document.getElementById('btnApiStatusBadge').addEventListener('click', openModal);
     document.getElementById('btnCloseSettings').addEventListener('click', closeModal);
     modal.addEventListener('click', (e) => {
       if (e.target === modal) closeModal();
     });
 
     document.getElementById('toggleShowClock').addEventListener('change', (e) => {
-      if (!isUnlockedAdmin()) return;
       uiState.showClock = e.target.checked;
       applyUiPreferences();
     });
 
     document.getElementById('toggleShowTimer').addEventListener('change', (e) => {
-      if (!isUnlockedAdmin()) return;
       uiState.showTimer = e.target.checked;
       if (!uiState.showTimer) uiState.timerFullscreen = false;
       applyUiPreferences();
     });
 
     document.getElementById('btnQuickToggleTimer').addEventListener('click', () => {
-      if (!isUnlockedAdmin()) return;
       if (uiState.timerFullscreen) {
         uiState.timerFullscreen = false;
       } else {
@@ -702,7 +680,6 @@
     });
 
     const toggleTimerFullscreen = () => {
-      if (!isUnlockedAdmin()) return;
       uiState.timerFullscreen = !uiState.timerFullscreen;
       if (uiState.timerFullscreen) {
         uiState.showTimer = true;
@@ -717,7 +694,6 @@
     document.getElementById('btnTimerExpandCard').addEventListener('click', toggleTimerFullscreen);
 
     const updateZoom = (newZoom) => {
-      if (!isUnlockedAdmin()) return;
       uiState.zoomPercent = Math.max(75, Math.min(155, Math.round(newZoom / 5) * 5));
       applyUiPreferences();
     };
@@ -734,14 +710,12 @@
 
     document.getElementById('sliderVolume').value = String(uiState.volumePercent);
     document.getElementById('sliderVolume').addEventListener('input', (e) => {
-      if (!isUnlockedAdmin()) return;
       uiState.volumePercent = parseInt(e.target.value, 10);
       soundEngine.setVolume(uiState.volumePercent / 100);
       savePrefs();
     });
 
     document.getElementById('btnTestSound').addEventListener('click', () => {
-      if (!isUnlockedAdmin()) return;
       soundEngine.setMuted(false);
       uiState.muted = false;
       document.getElementById('btnMuteAudio').textContent = '🔊';
@@ -751,7 +725,6 @@
 
     document.querySelectorAll('.wod-filter-pill').forEach((pill) => {
       pill.addEventListener('click', () => {
-        if (!isUnlockedAdmin()) return;
         const key = pill.getAttribute('data-wod-filter');
         uiState.wodFilters[key] = !uiState.wodFilters[key];
         applyUiPreferences();
@@ -767,7 +740,6 @@
 
     Object.entries(filterCheckboxMap).forEach(([chkId, filterKey]) => {
       document.getElementById(chkId).addEventListener('change', (e) => {
-        if (!isUnlockedAdmin()) return;
         uiState.wodFilters[filterKey] = e.target.checked;
         applyUiPreferences();
       });
@@ -892,7 +864,6 @@
     }
 
     const f = uiState.wodFilters;
-    const unlocked = isUnlockedAdmin();
 
     container.className =
       currentWorkouts.length === 1
@@ -952,20 +923,18 @@
         `
             : '';
 
-        // Le bouton de chargement de chrono est masqué en vue TV publique verrouillée
-        const presetBtnHtml =
-          unlocked && wod.suggestedTimer
-            ? `
+        const presetBtnHtml = wod.suggestedTimer
+          ? `
           <button
             type="button"
             data-load-wod-timer="${idx}"
             title="Charger automatiquement ce format dans le chronomètre"
-            class="admin-only-control px-3 py-1.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 text-xs font-extrabold uppercase tracking-wider transition flex items-center gap-1.5 shrink-0"
+            class="px-3 py-1.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 text-xs font-extrabold uppercase tracking-wider transition flex items-center gap-1.5 shrink-0"
           >
             <span>⏱️ ${escapeHtml(wod.suggestedTimer.label || 'Charger Chrono')}</span>
           </button>
         `
-            : '';
+          : '';
 
         return `
           <article class="bg-box-panel border border-box-border rounded-2xl p-5 shadow-xl flex flex-col justify-between gap-3.5 hover:border-slate-600 transition">
@@ -1014,7 +983,6 @@
     dateInput.value = selectedDateStr;
 
     const shiftDate = (deltaDays) => {
-      if (!isUnlockedAdmin()) return;
       const parts = (dateInput.value || formatDateInput(new Date())).split('-').map(Number);
       const d = new Date(parts[0], parts[1] - 1, parts[2]);
       d.setDate(d.getDate() + deltaDays);
@@ -1024,19 +992,14 @@
     };
 
     dateInput.addEventListener('change', (e) => {
-      if (!isUnlockedAdmin()) return;
       selectedDateStr = e.target.value;
       loadWorkouts();
     });
 
     document.getElementById('btnPrevDay').addEventListener('click', () => shiftDate(-1));
     document.getElementById('btnNextDay').addEventListener('click', () => shiftDate(1));
-    document.getElementById('selectSugarTrack').addEventListener('change', () => {
-      if (!isUnlockedAdmin()) return;
-      loadWorkouts();
-    });
+    document.getElementById('selectSugarTrack').addEventListener('change', () => loadWorkouts());
     document.getElementById('btnRefreshWod').addEventListener('click', () => {
-      if (!isUnlockedAdmin()) return;
       loadTracks();
       loadWorkouts();
     });

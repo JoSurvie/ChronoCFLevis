@@ -36,13 +36,13 @@
   <link rel="stylesheet" href="/css/styles.css" />
 </head>
 
-<!-- Par défaut : Vue TV Publique Verrouillée (public-tv-locked) -->
+<!-- Par défaut : public-tv-locked masque uniquement le bouton "Options & API" -->
 <body class="public-tv-locked min-h-screen bg-box-bg text-slate-100 flex flex-col justify-between selection:bg-red-600 selection:text-white">
   <!-- =====================================================================
-       BARRE SUPÉRIEURE TV (Logo, Horloge, et Contrôles Admin si connecté)
+       BARRE SUPÉRIEURE TV (Logo, Statut SugarWOD, Contrôles Coach, Horloge)
        ===================================================================== -->
   <header class="h-18 px-5 py-2.5 bg-box-panel/95 border-b border-box-border flex flex-wrap items-center justify-between gap-4 z-30">
-    <!-- Gauche : Identité Salle & Statut API SugarWOD (Admin) -->
+    <!-- Gauche : Identité Salle & Statut API SugarWOD -->
     <div class="flex items-center gap-4">
       <div class="flex items-center gap-2.5">
         <div class="w-3.5 h-8 rounded-sm bg-red-600 shadow-[0_0_15px_#ff2a2a]"></div>
@@ -56,19 +56,17 @@
         </div>
       </div>
 
-      <!-- Badge Source SugarWOD / Démo (Visible uniquement en Mode Admin) -->
-      <button
+      <!-- Badge Source SugarWOD / Démo -->
+      <div
         id="btnApiStatusBadge"
-        type="button"
-        title="Configurer la connexion SugarWOD"
-        class="admin-only-control flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-slate-900 border border-slate-700 hover:border-slate-500 transition"
+        class="flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-slate-900 border border-slate-700"
       >
         <span id="apiStatusDot" class="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse"></span>
         <span id="apiStatusText">SugarWOD : Démo</span>
-      </button>
+      </div>
     </div>
 
-    <!-- Centre : Horloge Temps Réel (Masquable par l'administrateur) -->
+    <!-- Centre : Horloge Temps Réel -->
     <div
       id="liveClockContainer"
       class="flex items-center gap-2.5 bg-black/80 px-4 py-1.5 rounded-lg border border-slate-800 shadow-inner"
@@ -79,10 +77,10 @@
       </span>
     </div>
 
-    <!-- Droite : Contrôles Rapides TV (Réservés à l'Admin connecté) + Accès Discret Login -->
+    <!-- Droite : Contrôles Rapides Coach + Bouton "Options & API" (Admin uniquement) -->
     <div class="flex items-center gap-2">
-      <!-- Contrôle de Zoom Global Rapide (Admin) -->
-      <div class="admin-only-control hidden xl:flex items-center bg-slate-900/90 border border-slate-800 rounded-lg px-2 py-1 gap-1.5">
+      <!-- Contrôle de Zoom Global Rapide -->
+      <div class="hidden xl:flex items-center bg-slate-900/90 border border-slate-800 rounded-lg px-2 py-1 gap-1.5">
         <button
           id="btnZoomOutQuick"
           type="button"
@@ -104,28 +102,28 @@
         </button>
       </div>
 
-      <!-- Bouton Afficher/Masquer Chrono rapide (Admin) -->
+      <!-- Bouton Afficher/Masquer Chrono rapide -->
       <button
         id="btnQuickToggleTimer"
         type="button"
-        class="admin-only-control px-3 py-2 rounded-lg bg-slate-800/90 hover:bg-slate-700 text-xs font-bold uppercase tracking-wider text-slate-200 border border-slate-700 transition flex items-center gap-1.5"
+        class="px-3 py-2 rounded-lg bg-slate-800/90 hover:bg-slate-700 text-xs font-bold uppercase tracking-wider text-slate-200 border border-slate-700 transition flex items-center gap-1.5"
         title="Afficher ou masquer le chronomètre"
       >
         <span>⏱️ Chrono</span>
       </button>
 
-      <!-- Bouton Chrono Plein Écran Géant (Admin) -->
+      <!-- Bouton Chrono Plein Écran Géant -->
       <button
         id="btnFullscreenTimer"
         type="button"
-        class="admin-only-control px-3.5 py-2 rounded-lg bg-red-600/20 hover:bg-red-600/35 text-red-300 border border-red-500/40 text-xs font-extrabold uppercase tracking-wider transition flex items-center gap-1.5"
+        class="px-3.5 py-2 rounded-lg bg-red-600/20 hover:bg-red-600/35 text-red-300 border border-red-500/40 text-xs font-extrabold uppercase tracking-wider transition flex items-center gap-1.5"
         title="Basculer le chronomètre en Plein Écran Géant sur toute la TV"
       >
         <span id="fullscreenTimerIcon">⛶</span>
         <span id="fullscreenTimerLabel">Chrono Géant</span>
       </button>
 
-      <!-- Bouton Panneau d'Options & Personnalisation (Admin) -->
+      <!-- Bouton Panneau d'Options & API (MASQUÉ PAR DÉFAUT — Visible uniquement si Admin connecté) -->
       <button
         id="btnOpenSettings"
         type="button"
@@ -134,22 +132,22 @@
         <span>⚙️ Options &amp; API</span>
       </button>
 
-      <!-- Bouton Déconnexion / Verrouiller TV (Admin) -->
+      <!-- Bouton Déconnexion Admin (Visible uniquement si Admin connecté) -->
       <button
         id="btnAdminLogout"
         type="button"
-        title="Se déconnecter et verrouiller l'écran TV en mode public"
+        title="Se déconnecter et masquer le bouton Options & API"
         class="admin-only-control px-3 py-2 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs font-extrabold uppercase tracking-wider transition flex items-center gap-1.5"
       >
-        <span>🔒 Verrouiller TV</span>
+        <span>🔒 Déconnexion</span>
       </button>
 
-      <!-- Bouton Discret d'accès au Login Admin (Visible uniquement en Vue TV Publique Verrouillée) -->
+      <!-- Bouton Discret d'accès au Login Admin (Visible lorsque non connecté) -->
       <button
         id="btnDiscreetAdminLogin"
         type="button"
-        title="Accès Coach / Administrateur (Alt + L)"
-        class="public-only-control w-8 h-8 rounded-lg bg-slate-900/40 hover:bg-slate-800 text-slate-600 hover:text-slate-200 border border-transparent hover:border-slate-700 text-xs flex items-center justify-center opacity-30 hover:opacity-100 transition"
+        title="Connexion Administrateur (Alt + L)"
+        class="public-only-control w-8 h-8 rounded-lg bg-slate-900/40 hover:bg-slate-800 text-slate-500 hover:text-slate-200 border border-transparent hover:border-slate-700 text-xs flex items-center justify-center opacity-35 hover:opacity-100 transition"
       >
         🔒
       </button>
@@ -170,8 +168,8 @@
       id="timerSection"
       class="lg:col-span-5 xl:col-span-5 bg-box-panel border border-box-border rounded-2xl p-4 md:p-5 shadow-2xl flex flex-col gap-4"
     >
-      <!-- En-tête du Chrono : Sélecteur des 3 Modes + Bouton Mute (Réservé Admin) -->
-      <div class="admin-only-control flex flex-wrap items-center justify-between gap-2">
+      <!-- En-tête du Chrono : Sélecteur des 3 Modes + Bouton Mute (Accessible au Coach) -->
+      <div class="flex flex-wrap items-center justify-between gap-2">
         <div class="grid grid-cols-3 gap-1.5 bg-slate-950 p-1 rounded-xl border border-slate-800 flex-1">
           <button
             type="button"
@@ -207,7 +205,7 @@
         </button>
       </div>
 
-      <!-- ÉCRAN D'AFFICHAGE LED PRINCIPAL (Toujours visible sur la TV sauf si Chrono masqué) -->
+      <!-- ÉCRAN D'AFFICHAGE LED PRINCIPAL -->
       <div
         id="timerDisplayBox"
         class="led-screen-surface rounded-2xl p-5 md:p-6 relative overflow-hidden flex flex-col items-center justify-center min-h-[250px] md:min-h-[280px] transition-all"
@@ -255,8 +253,8 @@
         </div>
       </div>
 
-      <!-- BOUTONS D'ACTION DU CHRONOMÈTRE (Réservés au mode Admin connecté) -->
-      <div class="admin-only-control grid grid-cols-12 gap-2.5">
+      <!-- BOUTONS D'ACTION DU CHRONOMÈTRE (START / PAUSE / RESET / PLEIN ÉCRAN) -->
+      <div class="grid grid-cols-12 gap-2.5">
         <button
           id="btnTimerStartPause"
           type="button"
@@ -284,8 +282,8 @@
         </button>
       </div>
 
-      <!-- PANNEAU DE PARAMÉTRAGE DU MODE SÉLECTIONNÉ (Réservé au mode Admin connecté) -->
-      <div id="timerConfigAccordion" class="admin-only-control bg-slate-950/90 border border-slate-800/90 rounded-xl p-4 space-y-3">
+      <!-- PANNEAU DE PARAMÉTRAGE DU MODE SÉLECTIONNÉ (Accessible au Coach) -->
+      <div id="timerConfigAccordion" class="bg-slate-950/90 border border-slate-800/90 rounded-xl p-4 space-y-3">
         <div class="flex items-center justify-between border-b border-slate-800 pb-2">
           <span class="text-xs font-extrabold uppercase tracking-wider text-slate-400">
             Paramètres du Chronomètre
@@ -493,8 +491,8 @@
       id="wodSection"
       class="lg:col-span-7 xl:col-span-7 flex flex-col gap-4"
     >
-      <!-- Barre d'outils WOD : Sélection Date, Piste (Track), Filtres d'affichage (Réservé Admin) -->
-      <div class="admin-only-control bg-box-panel border border-box-border rounded-2xl p-3.5 md:p-4 flex flex-wrap items-center justify-between gap-3 shadow-xl">
+      <!-- Barre d'outils WOD : Sélection Date, Piste (Track), Filtres d'affichage (Accessible au Coach) -->
+      <div class="bg-box-panel border border-box-border rounded-2xl p-3.5 md:p-4 flex flex-wrap items-center justify-between gap-3 shadow-xl">
         <div class="flex flex-wrap items-center gap-2.5">
           <!-- Sélecteur de Date -->
           <div class="flex items-center bg-slate-950 border border-slate-800 rounded-xl p-1">
@@ -575,10 +573,10 @@
         </div>
       </div>
 
-      <!-- Bannière d'avertissement éventuelle (visible uniquement Admin) -->
+      <!-- Bannière d'avertissement éventuelle -->
       <div
         id="wodWarningBanner"
-        class="admin-only-control hidden bg-amber-500/15 border border-amber-500/40 text-amber-200 px-4 py-2.5 rounded-xl text-xs font-semibold flex items-center justify-between"
+        class="hidden bg-amber-500/15 border border-amber-500/40 text-amber-200 px-4 py-2.5 rounded-xl text-xs font-semibold flex items-center justify-between"
       >
         <span id="wodWarningText"></span>
         <button
@@ -601,7 +599,7 @@
   </main>
 
   <!-- =====================================================================
-       MODALE 1 : CONNEXION ADMINISTRATEUR / COACH (Login Session)
+       MODALE 1 : CONNEXION ADMINISTRATEUR (Pour débloquer "Options & API")
        ===================================================================== -->
   <div
     id="loginModal"
@@ -611,10 +609,10 @@
       <div class="flex items-center justify-between border-b border-slate-800 pb-3">
         <div>
           <h2 class="font-led text-lg font-black text-white tracking-wider">
-            🔐 ACCÈS ADMINISTRATION TV
+            🔐 ACCÈS OPTIONS &amp; API
           </h2>
           <p class="text-xs text-slate-400 mt-0.5">
-            Connectez-vous pour déverrouiller les contrôles du chronomètre et les options TV.
+            Connectez-vous en tant qu'administrateur pour afficher le bouton « Options &amp; API ».
           </p>
         </div>
         <button
@@ -685,7 +683,7 @@
           CHANGEMENT DU MOT DE PASSE TEMPORAIRE
         </h2>
         <p class="text-xs text-slate-400 mt-1">
-          Pour sécuriser l'écran de la salle, vous devez remplacer le mot de passe par défaut (<code class="text-amber-300">admin123</code>) par un nouveau mot de passe personnel.
+          Pour sécuriser vos paramètres API SugarWOD, vous devez remplacer le mot de passe par défaut (<code class="text-amber-300">admin123</code>) par un nouveau mot de passe personnel.
         </p>
       </div>
 
@@ -739,13 +737,13 @@
             type="button"
             class="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold uppercase tracking-wider"
           >
-            Se déconnecter
+            Annuler
           </button>
           <button
             type="submit"
             class="flex-1 py-2.5 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-led text-xs font-black uppercase tracking-wider shadow-lg transition"
           >
-            Enregistrer &amp; Déverrouiller
+            Enregistrer &amp; Continuer
           </button>
         </div>
       </form>
@@ -767,7 +765,7 @@
             OPTIONS D'AFFICHAGE TV &amp; SUGARWOD API
           </h2>
           <p class="text-xs text-slate-400 mt-0.5">
-            Panneau réservé à l'administrateur connecté.
+            Panneau d'administration et de configuration de la clé SugarWOD.
           </p>
         </div>
         <button
