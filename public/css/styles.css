@@ -212,13 +212,45 @@ body {
 }
 
 /* Mode Portrait sur Téléphone uniquement :
-   Supprimer les boutons "Chrono" et "Chrono Géant" de la barre supérieure */
+   - Ligne 1 : "CHRONOCROSSFIT" à gauche + Icône Admin tout en haut à droite alignée
+   - Ligne 2 : Bouton "GO" à gauche + Afficheur Chrono/Heure sur tout l'espace restant à droite
+   - Masquer les boutons "Chrono" et "Chrono Géant" de la barre supérieure */
 @media (max-width: 768px) and (orientation: portrait) {
-  #btnQuickToggleTimer,
-  #btnFullscreenTimer {
-    display: none !important;
+  #topHeaderBar {
+    padding: 0.5rem 0.75rem;
+    gap: 0.45rem;
   }
 
+  #headerTopBrandRow {
+    order: 1;
+  }
+
+  #headerRightActions {
+    order: 2;
+    margin-left: auto;
+  }
+
+  #headerCenterRow {
+    order: 3;
+    width: 100%;
+    display: flex;
+    align-items: stretch;
+    gap: 0.5rem;
+  }
+
+  #btnMobileHeaderGo {
+    display: inline-flex !important;
+  }
+
+  #liveClockContainer {
+    display: flex !important;
+    flex: 1 1 auto;
+    min-width: 0;
+    justify-content: space-between;
+  }
+
+  #btnQuickToggleTimer,
+  #btnFullscreenTimer,
   #btnApiStatusBadge {
     display: none !important;
   }

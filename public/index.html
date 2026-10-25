@@ -46,7 +46,7 @@
     class="relative h-18 px-5 py-2.5 bg-box-panel/95 backdrop-blur border-b border-box-border flex flex-wrap items-center justify-between gap-4 z-40"
   >
     <!-- Gauche : Identité Salle & Statut API SugarWOD -->
-    <div class="flex items-center gap-4">
+    <div id="headerTopBrandRow" class="flex items-center gap-4">
       <div class="flex items-center gap-2.5">
         <div class="w-3.5 h-8 rounded-sm bg-red-600 shadow-[0_0_15px_#ff2a2a]"></div>
         <div>
@@ -66,25 +66,43 @@
       </div>
     </div>
 
-    <!-- Centre : Horloge Temps Réel (ou Chrono + Round en cours sur mobile portrait) -->
+    <!-- Centre (TV/Desktop) ou 2ème ligne pleine largeur (Mobile Portrait : Bouton GO à gauche + Chrono/Heure à droite) -->
     <div
-      id="liveClockContainer"
-      class="lg:absolute lg:left-1/2 lg:-translate-x-1/2 flex items-center gap-2 bg-black/80 px-3 sm:px-4 py-1.5 rounded-lg border border-slate-800 shadow-inner"
+      id="headerCenterRow"
+      class="lg:absolute lg:left-1/2 lg:-translate-x-1/2 flex items-center gap-2"
     >
-      <span id="liveClockLabel" class="text-[11px] font-bold uppercase tracking-widest text-slate-400">HEURE</span>
-      <span id="liveClockDisplay" class="font-led text-xl sm:text-2xl md:text-3xl font-extrabold text-amber-400 tracking-wider">
-        00:00:00
-      </span>
-      <span
-        id="headerMobileRoundBadge"
-        class="hidden font-led text-xs font-extrabold uppercase tracking-wider px-2 py-0.5 rounded bg-slate-900 text-emerald-300 border border-emerald-500/40"
+      <!-- Bouton "GO" direct dans la barre du haut (Visible uniquement en mode portrait sur téléphone) -->
+      <button
+        id="btnMobileHeaderGo"
+        type="button"
+        title="Démarrer / Mettre en pause le chronomètre"
+        class="mobile-portrait-only hidden px-4 py-2 rounded-lg font-led text-sm font-black uppercase tracking-wider bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-[0_0_15px_rgba(16,185,129,0.4)] transition items-center justify-center shrink-0"
       >
-        Round 1/1
-      </span>
+        GO
+      </button>
+
+      <!-- Afficheur Horloge Temps Réel / Chrono Mobile -->
+      <div
+        id="liveClockContainer"
+        class="flex items-center justify-between gap-2 bg-black/80 px-3 sm:px-4 py-1.5 rounded-lg border border-slate-800 shadow-inner"
+      >
+        <div class="flex items-center gap-2">
+          <span id="liveClockLabel" class="text-[11px] font-bold uppercase tracking-widest text-slate-400">HEURE</span>
+          <span id="liveClockDisplay" class="font-led text-xl sm:text-2xl md:text-3xl font-extrabold text-amber-400 tracking-wider">
+            00:00:00
+          </span>
+        </div>
+        <span
+          id="headerMobileRoundBadge"
+          class="hidden font-led text-xs font-extrabold uppercase tracking-wider px-2 py-0.5 rounded bg-slate-900 text-emerald-300 border border-emerald-500/40 shrink-0"
+        >
+          Round 1/1
+        </span>
+      </div>
     </div>
 
-    <!-- Droite : Contrôles Rapides Coach + Bouton "Options & API" (Admin uniquement) -->
-    <div class="flex items-center gap-2">
+    <!-- Droite : Contrôles Rapides Coach + Bouton "Options & API" / Icône Admin -->
+    <div id="headerRightActions" class="flex items-center gap-2">
       <!-- Contrôle de Zoom Global Rapide -->
       <div class="hidden xl:flex items-center bg-slate-900/90 border border-slate-800 rounded-lg px-2 py-1 gap-1.5">
         <button

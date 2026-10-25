@@ -364,26 +364,48 @@
         'px-3 py-1 rounded-md text-xs md:text-sm font-extrabold uppercase tracking-widest bg-red-500/20 text-red-400 border border-red-500/30';
     }
 
+    const btnMobileHeaderGo = document.getElementById('btnMobileHeaderGo');
+
     if (state.status === 'RUNNING') {
       startPauseIcon.textContent = '⏸';
       startPauseLabel.textContent = 'PAUSE';
       btnTimerStartPause.className =
         'col-span-6 py-3.5 px-4 rounded-xl font-led text-base md:text-lg font-black uppercase tracking-wider bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-[0_0_20px_rgba(245,158,11,0.35)] transition flex items-center justify-center gap-2';
+      if (btnMobileHeaderGo) {
+        btnMobileHeaderGo.textContent = 'PAUSE';
+        btnMobileHeaderGo.className =
+          'mobile-portrait-only hidden px-4 py-2 rounded-lg font-led text-sm font-black uppercase tracking-wider bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-[0_0_15px_rgba(245,158,11,0.4)] transition items-center justify-center shrink-0';
+      }
     } else if (state.status === 'PAUSED') {
       startPauseIcon.textContent = '▶';
       startPauseLabel.textContent = 'REPRENDRE';
       btnTimerStartPause.className =
         'col-span-6 py-3.5 px-4 rounded-xl font-led text-base md:text-lg font-black uppercase tracking-wider bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-[0_0_20px_rgba(16,185,129,0.35)] transition flex items-center justify-center gap-2';
+      if (btnMobileHeaderGo) {
+        btnMobileHeaderGo.textContent = 'GO';
+        btnMobileHeaderGo.className =
+          'mobile-portrait-only hidden px-4 py-2 rounded-lg font-led text-sm font-black uppercase tracking-wider bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-[0_0_15px_rgba(16,185,129,0.4)] transition items-center justify-center shrink-0';
+      }
     } else if (state.status === 'COMPLETED') {
       startPauseIcon.textContent = '↻';
       startPauseLabel.textContent = 'RELANCER (10s)';
       btnTimerStartPause.className =
         'col-span-6 py-3.5 px-4 rounded-xl font-led text-base md:text-lg font-black uppercase tracking-wider bg-red-600 hover:bg-red-500 text-white shadow-[0_0_20px_rgba(239,68,68,0.4)] transition flex items-center justify-center gap-2';
+      if (btnMobileHeaderGo) {
+        btnMobileHeaderGo.textContent = 'GO';
+        btnMobileHeaderGo.className =
+          'mobile-portrait-only hidden px-4 py-2 rounded-lg font-led text-sm font-black uppercase tracking-wider bg-red-600 hover:bg-red-500 text-white shadow-[0_0_15px_rgba(239,68,68,0.4)] transition items-center justify-center shrink-0';
+      }
     } else {
       startPauseIcon.textContent = '▶';
       startPauseLabel.textContent = 'START (10s)';
       btnTimerStartPause.className =
         'col-span-6 py-3.5 px-4 rounded-xl font-led text-base md:text-lg font-black uppercase tracking-wider bg-emerald-600 hover:bg-emerald-500 text-slate-950 shadow-[0_0_20px_rgba(16,185,129,0.35)] transition flex items-center justify-center gap-2';
+      if (btnMobileHeaderGo) {
+        btnMobileHeaderGo.textContent = 'GO';
+        btnMobileHeaderGo.className =
+          'mobile-portrait-only hidden px-4 py-2 rounded-lg font-led text-sm font-black uppercase tracking-wider bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-[0_0_15px_rgba(16,185,129,0.4)] transition items-center justify-center shrink-0';
+      }
     }
   }
 
@@ -497,6 +519,10 @@
     });
 
     btnTimerStartPause.addEventListener('click', () => timer.toggle());
+    const btnMobileHeaderGo = document.getElementById('btnMobileHeaderGo');
+    if (btnMobileHeaderGo) {
+      btnMobileHeaderGo.addEventListener('click', () => timer.toggle());
+    }
     document.getElementById('btnTimerReset').addEventListener('click', () => timer.reset());
 
     const btnMute = document.getElementById('btnMuteAudio');
