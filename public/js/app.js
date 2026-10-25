@@ -320,10 +320,62 @@
   }
 
   let latestTimerState = null;
+  let wakeLockSentinel = null;
+
+  // Détermine si l'écran doit être maintenu allumé (en mode Plein Écran ou quand le chrono tourne)
+  function shouldKeepScreenAwake() {
+    return Boolean(
+      uiState.timerFullscreen || (latestTimerState && latestTimerState.status === 'RUNNING')
+    );
+  }
+
+  // Active ou relâche le verrouillage de veille d'écran (Screen Wake Lock API)
+  async function syncScreenWakeLock() {
+    if (!('wakeLock' in navigator) || !navigator.wakeLock) return;
+
+    if (shouldKeepScreenAwake()) {
+      if (!wakeLockSentinel && document.visibilityState === 'visible') {
+        try {
+          wakeLockSentinel = await navigator.wakeLock.request('screen');
+          wakeLockSentinel.addEventListener('release', () => {
+            wakeLockSentinel = null;
+          });
+        } catch (err) {
+          // Ignorer si refusé par économiseur de batterie ou contexte non sécurisé
+        }
+      }
+    } else if (wakeLockSentinel) {
+      try {
+        await wakeLockSentinel.release();
+      } catch (err) {
+        // Ignorer
+      }
+      wakeLockSentinel = null;
+    }
+  }
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && shouldKeepScreenAwake()) {
+      syncScreenWakeLock();
+    }
+  });
+
+  ['click', 'touchstart'].forEach((evtName) => {
+    document.addEventListener(
+      evtName,
+      () => {
+        if (shouldKeepScreenAwake() && !wakeLockSentinel) {
+          syncScreenWakeLock();
+        }
+      },
+      { passive: true }
+    );
+  });
 
   // --- Rendu Haute Fréquence de l'afficheur LED ---
   function renderTimerState(state) {
     latestTimerState = state;
+    syncScreenWakeLock();
     timerDigits.textContent = state.displayMain;
     timerPhaseBadge.textContent = state.phaseLabel;
     timerSubInfo.textContent = state.displaySub;
@@ -711,6 +763,7 @@
     }
 
     document.body.classList.toggle('timer-fullscreen-mode', Boolean(uiState.timerFullscreen));
+    syncScreenWakeLock();
     const fsLabel = document.getElementById('fullscreenTimerLabel');
     const btnExpandCard = document.getElementById('btnTimerExpandCard');
     if (uiState.timerFullscreen) {
